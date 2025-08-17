@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using System.Linq;
 using Migs.MLock.Debugging;
+using Migs.MLock.Interfaces;
 using UnityEditor;
 using UnityEngine;
 
@@ -120,23 +121,33 @@ namespace Migs.MLock.Editor.DebugWindow
             {
                 var type = service.GetType();
                 var serviceName = type.Name;
+                var foldoutKey = type.FullName ?? serviceName;
+
+                // Determine tag type(s) from implemented ILockService<T>
+                var tagTypeNames = type.GetInterfaces()
+                    .Where(i => i.IsGenericType && i.GetGenericTypeDefinition() == typeof(ILockService<>))
+                    .Select(i => i.GetGenericArguments().First().Name)
+                    .Distinct()
+                    .ToList();
                 
-                _foldoutStates.TryAdd(serviceName, true);
+                var tagType = tagTypeNames.Count > 0 ? string.Join(", ", tagTypeNames) : "Unknown";
+                
+                _foldoutStates.TryAdd(foldoutKey, true);
                 
                 EditorGUILayout.BeginVertical(_serviceItemStyle);
                 
-                _foldoutStates[serviceName] = EditorGUILayout.Foldout(_foldoutStates[serviceName], 
+                _foldoutStates[foldoutKey] = EditorGUILayout.Foldout(_foldoutStates[foldoutKey], 
                     $"Lock Service: {serviceName}");
                 
-                if (_foldoutStates[serviceName])
+                if (_foldoutStates[foldoutKey])
                 {
                     EditorGUI.indentLevel++;
                     
-                    EditorGUILayout.LabelField($"Tag Type: {serviceName}", _subheaderStyle);
+                    EditorGUILayout.LabelField($"Tag Type: {tagType}", _subheaderStyle);
                     EditorGUILayout.LabelField($"Service Implementation: {type.FullName}");
                     
-                    // Count active locks for this service
-                    var lockCount = DebugDataHandler.ActiveLocks.Count(lockInfo => lockInfo.LockType == serviceName);
+                    // Count active locks for this service by matching tag types
+                    var lockCount = DebugDataHandler.ActiveLocks.Count(lockInfo => tagTypeNames.Contains(lockInfo.LockType));
 
                     EditorGUILayout.LabelField($"Active Locks: {lockCount}");
                     
