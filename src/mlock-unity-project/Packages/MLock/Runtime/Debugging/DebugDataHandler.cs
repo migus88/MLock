@@ -80,6 +80,12 @@ namespace Migs.MLock.Debugging
         /// </summary>
         public static void UpdateData()
         {
+            if (!Application.isPlaying && (ActiveLocks.Count > 0 || LockServices.Count > 0))
+            {
+                _activeLocks.Clear();
+                _lockServices.Clear();
+            }
+            
             if (!_isEnabled)
             {
                 return;
