@@ -86,13 +86,11 @@ namespace Migs.MLock.Debugging
                 _lockServices.Clear();
             }
             
-            if (!_isEnabled)
+            if (!_isEnabled || Time.realtimeSinceStartup - _lastUpdateTime < 1f)
             {
                 return;
             }
             
-            // Only update at reasonable intervals
-            if (Time.realtimeSinceStartup - _lastUpdateTime < 1f) return;
             _lastUpdateTime = Time.realtimeSinceStartup;
             
             _activeLocks.Clear();
@@ -103,19 +101,11 @@ namespace Migs.MLock.Debugging
             }
         }
         
-        /// <summary>
-        /// Unlock a specific lock
-        /// </summary>
-        /// <param name="lockId">The ID of the lock to unlock</param>
-        /// <returns>True if the lock was found and unlocked, false otherwise</returns>
         public static bool UnlockById(int lockId)
         {
             return _lockServices.Select(service => service.TryUnlockById(lockId)).FirstOrDefault();
         }
         
-        /// <summary>
-        /// Unlock all locks
-        /// </summary>
         public static void UnlockAll()
         {
             foreach (var service in _lockServices)
