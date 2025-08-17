@@ -14,7 +14,7 @@ namespace Migs.MLock.Editor.DebugWindow
         // UI state
         private Vector2 _scrollPosition;
         private bool _isAutoRefresh = true;
-        private readonly Dictionary<string, bool> _foldoutStates = new Dictionary<string, bool>();
+        private readonly Dictionary<string, bool> _foldoutStates = new();
         
         // Styles
         private GUIStyle _headerStyle;
