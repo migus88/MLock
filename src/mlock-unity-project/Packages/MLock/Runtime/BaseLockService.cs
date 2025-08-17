@@ -1,5 +1,7 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
+using Migs.MLock.Debugging;
 using Migs.MLock.Interfaces;
 using Migs.MLock.Pools;
 
@@ -9,7 +11,7 @@ namespace Migs.MLock
     /// A base implementation of <see cref="ILockService{TLockTags}"/>
     /// </summary>
     /// <typeparam name="TLockTags">The enum type used for lock tags</typeparam>
-    public class BaseLockService<TLockTags> : ILockService<TLockTags> where TLockTags : Enum
+    public class BaseLockService<TLockTags> : ILockService<TLockTags>, IDebuggableLockService where TLockTags : Enum
     {
         private readonly Dictionary<ILockable<TLockTags>, ILockableData<TLockTags>> _lockableToDataMap = new();
         private readonly HashSet<ILock<TLockTags>> _activeLocks = new();
@@ -222,6 +224,44 @@ namespace Migs.MLock
             }
 
             return false;
+        }
+
+        public void PopulateDebugInfo(List<LockDebugInfo> debugInfo)
+        {
+            foreach (var @lock in _activeLocks)
+            {
+                var lockInfo = new LockDebugInfo
+                {
+                    Id = @lock.Id,
+                    LockType = typeof(TLockTags).Name,
+                    IncludeTags = @lock.IncludeTags?.ToString(),
+                    ExcludeTags = @lock.ExcludeTags?.ToString(),
+                    AffectedLockables = _lockableToDataMap.Where(p => p.Value.Locks.Contains(@lock)).Select(p => p.Key.ToString()).ToList()
+                };
+                
+                debugInfo.Add(lockInfo);
+            }
+        }
+
+        public bool TryUnlockById(int lockId)
+        {            
+            var lockToRemove = _activeLocks.FirstOrDefault(l => l.Id == lockId);
+            if (lockToRemove == null)
+            {
+                return false;
+            }
+            
+            lockToRemove.Dispose();
+            return true;
+
+        }
+
+        public void UnlockAll()
+        {
+            foreach (var @lock in _activeLocks)
+            {
+                @lock.Dispose();
+            }
         }
     }
 }

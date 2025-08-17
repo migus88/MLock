@@ -1,4 +1,6 @@
 using System;
+using System.Collections.Generic;
+using Migs.MLock.Debugging;
 
 namespace Migs.MLock.Interfaces
 {
@@ -67,5 +69,12 @@ namespace Migs.MLock.Interfaces
         /// <param name="lockable">The lockable to check</param>
         /// <returns>True if the lockable is locked, false otherwise</returns>
         bool IsLocked(ILockable<TLockTags> lockable);
+    }
+
+    public interface IDebuggableLockService : ILockService
+    {
+        void PopulateDebugInfo(List<LockDebugInfo> debugInfo);
+        bool TryUnlockById(int lockId);
+        void UnlockAll();
     }
 }

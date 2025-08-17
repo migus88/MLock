@@ -2,11 +2,13 @@ using System;
 
 namespace Migs.MLock.Interfaces
 {
+    public interface ILock { }
+    
     /// <summary>
     /// Interface representing a lock that can be applied to lockable objects
     /// </summary>
     /// <typeparam name="TLockTags">The enum type used for lock tags</typeparam>
-    public interface ILock<out TLockTags> : IDisposable where TLockTags : Enum
+    public interface ILock<out TLockTags> : ILock, IDisposable where TLockTags : Enum
     {
         /// <summary>
         /// Unique identifier for this lock

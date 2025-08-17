@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System.Linq;
 using Migs.MLock.Debugging;
 using UnityEditor;
 using UnityEngine;
@@ -23,7 +24,7 @@ namespace Migs.MLock.Editor.DebugWindow
         private void OnEnable()
         {
             // Enable debug data collection
-            DebugData.SetEnabled(true);
+            DebugDataHandler.SetEnabled(true);
             EditorApplication.update += OnEditorUpdate;
         }
         
@@ -60,7 +61,7 @@ namespace Migs.MLock.Editor.DebugWindow
             if (_isAutoRefresh)
             {
                 // Update data and repaint window
-                DebugData.UpdateData();
+                DebugDataHandler.UpdateData();
                 Repaint();
             }
         }
@@ -87,7 +88,7 @@ namespace Migs.MLock.Editor.DebugWindow
             // Refresh button
             if (GUILayout.Button("Refresh", EditorStyles.toolbarButton))
             {
-                DebugData.UpdateData();
+                DebugDataHandler.UpdateData();
             }
             
             // Auto refresh toggle
@@ -108,44 +109,35 @@ namespace Migs.MLock.Editor.DebugWindow
         {
             EditorGUILayout.LabelField("Lock Services", _headerStyle);
             
-            var services = DebugData.GetLockServices();
+            var services = DebugDataHandler.LockServices;
             if (services.Count == 0)
             {
                 EditorGUILayout.HelpBox("No lock services registered. Lock services must be registered with MLockDebugData.RegisterLockService().", MessageType.Info);
                 return;
             }
             
-            foreach (var pair in services)
+            foreach (var service in services)
             {
-                string serviceKey = pair.Key.Name;
+                var type = service.GetType();
+                var serviceName = type.Name;
                 
-                if (!_foldoutStates.ContainsKey(serviceKey))
-                {
-                    _foldoutStates[serviceKey] = true;
-                }
+                _foldoutStates.TryAdd(serviceName, true);
                 
                 EditorGUILayout.BeginVertical(_serviceItemStyle);
                 
-                _foldoutStates[serviceKey] = EditorGUILayout.Foldout(_foldoutStates[serviceKey], 
-                    $"Lock Service: {serviceKey}");
+                _foldoutStates[serviceName] = EditorGUILayout.Foldout(_foldoutStates[serviceName], 
+                    $"Lock Service: {serviceName}");
                 
-                if (_foldoutStates[serviceKey])
+                if (_foldoutStates[serviceName])
                 {
                     EditorGUI.indentLevel++;
                     
-                    EditorGUILayout.LabelField($"Tag Type: {pair.Key.Name}", _subheaderStyle);
-                    EditorGUILayout.LabelField($"Service Implementation: {pair.Value.GetType().FullName}");
+                    EditorGUILayout.LabelField($"Tag Type: {serviceName}", _subheaderStyle);
+                    EditorGUILayout.LabelField($"Service Implementation: {type.FullName}");
                     
                     // Count active locks for this service
-                    int lockCount = 0;
-                    foreach (var lockInfo in DebugData.GetActiveLocks())
-                    {
-                        if (lockInfo.LockType == pair.Key.Name)
-                        {
-                            lockCount++;
-                        }
-                    }
-                    
+                    var lockCount = DebugDataHandler.ActiveLocks.Count(lockInfo => lockInfo.LockType == serviceName);
+
                     EditorGUILayout.LabelField($"Active Locks: {lockCount}");
                     
                     if (GUILayout.Button("View Locks"))

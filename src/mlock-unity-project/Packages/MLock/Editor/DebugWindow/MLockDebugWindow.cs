@@ -49,14 +49,14 @@ namespace Migs.MLock.Editor.DebugWindow
         private void OnEnable()
         {
             // Enable debug data collection
-            DebugData.SetEnabled(true);
+            DebugDataHandler.SetEnabled(true);
             EditorApplication.update += OnEditorUpdate;
         }
         
         private void OnDisable()
         {
             // Disable debug data collection to avoid unnecessary processing
-            DebugData.SetEnabled(false);
+            DebugDataHandler.SetEnabled(false);
             EditorApplication.update -= OnEditorUpdate;
         }
         
@@ -104,7 +104,7 @@ namespace Migs.MLock.Editor.DebugWindow
             if (_isAutoRefresh)
             {
                 // Update data and repaint window
-                DebugData.UpdateData();
+                DebugDataHandler.UpdateData();
                 Repaint();
             }
         }
@@ -133,7 +133,7 @@ namespace Migs.MLock.Editor.DebugWindow
             // Refresh button
             if (GUILayout.Button("Refresh", EditorStyles.toolbarButton))
             {
-                DebugData.UpdateData();
+                DebugDataHandler.UpdateData();
             }
             
             // Auto refresh toggle
@@ -154,8 +154,8 @@ namespace Migs.MLock.Editor.DebugWindow
                         "Are you sure you want to unlock all active locks?", 
                         "Yes", "Cancel"))
                 {
-                    DebugData.UnlockAll();
-                    DebugData.UpdateData();
+                    DebugDataHandler.UnlockAll();
+                    DebugDataHandler.UpdateData();
                 }
             }
             
@@ -185,7 +185,7 @@ namespace Migs.MLock.Editor.DebugWindow
             EditorGUILayout.Space();
             EditorGUILayout.LabelField("Active Locks", _headerStyle);
             
-            var locks = DebugData.GetActiveLocks();
+            var locks = DebugDataHandler.ActiveLocks;
             if (locks.Count == 0)
             {
                 EditorGUILayout.HelpBox("No active locks.", MessageType.Info);
@@ -195,7 +195,7 @@ namespace Migs.MLock.Editor.DebugWindow
             // Filter locks based on search
             var filteredLocks = FilterLocks(locks);
             
-            if (filteredLocks.Count == 0 && !string.IsNullOrEmpty(_searchText))
+            if (!filteredLocks.Any() && !string.IsNullOrEmpty(_searchText))
             {
                 EditorGUILayout.HelpBox($"No locks matching search: '{_searchText}'", MessageType.Info);
                 return;
@@ -220,9 +220,9 @@ namespace Migs.MLock.Editor.DebugWindow
                 
                 if (GUILayout.Button("Unlock", GUILayout.Width(60)))
                 {
-                    if (DebugData.UnlockById(lockInfo.Id))
+                    if (DebugDataHandler.UnlockById(lockInfo.Id))
                     {
-                        DebugData.UpdateData();
+                        DebugDataHandler.UpdateData();
                     }
                 }
                 
@@ -253,14 +253,14 @@ namespace Migs.MLock.Editor.DebugWindow
             EditorGUILayout.BeginVertical(_categoryStyle);
             EditorGUILayout.BeginHorizontal();
             GUILayout.Label("Include Tags:", _boldLabelStyle, GUILayout.Width(120));
-            GUILayout.Label(lockInfo.IncludeTags);
+            GUILayout.Label(lockInfo.IncludeTags ?? "None");
             EditorGUILayout.EndHorizontal();
             EditorGUILayout.EndVertical();
             
             EditorGUILayout.BeginVertical(_categoryStyle);
             EditorGUILayout.BeginHorizontal();
             GUILayout.Label("Exclude Tags:", _boldLabelStyle, GUILayout.Width(120));
-            GUILayout.Label(lockInfo.ExcludeTags);
+            GUILayout.Label(lockInfo.ExcludeTags ?? "None");
             EditorGUILayout.EndHorizontal();
             EditorGUILayout.EndVertical();
             
@@ -279,11 +279,16 @@ namespace Migs.MLock.Editor.DebugWindow
             }
         }
         
-        private List<LockDebugInfo> FilterLocks(List<LockDebugInfo> locks)
+        private List<LockDebugInfo> FilterLocks(IEnumerable<LockDebugInfo> locks)
         {
             if (string.IsNullOrEmpty(_searchText))
             {
-                return locks;
+                if (locks is List<LockDebugInfo> list)
+                {
+                    return list;
+                }
+
+                return locks.ToList();
             }
             
             return locks.Where(lockInfo =>

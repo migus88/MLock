@@ -9,13 +9,24 @@ namespace Migs.MLock.Debugging
     /// </summary>
     public static class DebugExtensions
     {
+        public static ILockService<TLockTags> WithDebug<TLockTags>(this ILockService<TLockTags> service)
+            where TLockTags : Enum
+        {
+            if (service is IDebuggableLockService debuggableService)
+            {
+                return debuggableService.WithDebug<TLockTags>();
+            }
+            
+            throw new Exception($"Service is not implementing {nameof(IDebuggableLockService)}");
+        }
+        
         /// <summary>
         /// Registers this lock service with the debug system
         /// </summary>
         /// <param name="service">The lock service to register</param>
         /// <typeparam name="TLockTags">The enum type used for lock tags</typeparam>
         /// <returns>The lock service for method chaining</returns>
-        public static ILockService<TLockTags> WithDebug<TLockTags>(this ILockService<TLockTags> service)
+        public static ILockService<TLockTags> WithDebug<TLockTags>(this IDebuggableLockService service)
             where TLockTags : Enum => service.WithDebug<TLockTags, ILockService<TLockTags>>();
         
         /// <summary>
@@ -25,12 +36,12 @@ namespace Migs.MLock.Debugging
         /// <typeparam name="TLockTags">The enum type used for lock tags</typeparam>
         /// <typeparam name="TCast">Type to cast the lock service into</typeparam>
         /// <returns>The lock service for method chaining</returns>
-        public static TCast WithDebug<TLockTags, TCast>(this ILockService<TLockTags> service)
+        public static TCast WithDebug<TLockTags, TCast>(this IDebuggableLockService service)
             where TLockTags : Enum 
             where TCast : class, ILockService<TLockTags>
         {
 #if UNITY_EDITOR
-            DebugData.RegisterLockService(service);
+            DebugDataHandler.RegisterLockService(service);
 #endif
 
             return service as TCast;
@@ -42,7 +53,7 @@ namespace Migs.MLock.Debugging
         /// <param name="service">The lock service to unregister</param>
         /// <typeparam name="TLockTags">The enum type used for lock tags</typeparam>
         /// <returns>The lock service for method chaining</returns>
-        public static ILockService<TLockTags> WithoutDebug<TLockTags>(this ILockService<TLockTags> service)
+        public static ILockService<TLockTags> WithoutDebug<TLockTags>(this IDebuggableLockService service)
             where TLockTags : Enum => service.WithoutDebug<TLockTags, ILockService<TLockTags>>();
 
         /// <summary>
@@ -52,12 +63,12 @@ namespace Migs.MLock.Debugging
         /// <typeparam name="TLockTags">The enum type used for lock tags</typeparam>
         /// <typeparam name="TCast">Type to cast the lock service into</typeparam>
         /// <returns>The lock service for method chaining</returns>
-        public static TCast WithoutDebug<TLockTags, TCast>(this ILockService<TLockTags> service)
+        public static TCast WithoutDebug<TLockTags, TCast>(this IDebuggableLockService service)
             where TLockTags : Enum 
             where TCast : class, ILockService<TLockTags>
         {
 #if UNITY_EDITOR
-            DebugData.UnregisterLockService(service);
+            DebugDataHandler.UnregisterLockService(service);
 #endif
 
             return service as TCast;
