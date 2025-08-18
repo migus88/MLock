@@ -69,10 +69,15 @@ namespace Migs.MLock.Debugging
                     .Select(p => FormatLockable(p.Key))
                     .ToList();
 
-                var origin = default(string);
-                if (@lock is BaseLock<TLockTags> baseLock)
+                var origin = "Unknown";
+                string originFile = null;
+                int? originLine = null;
+                
+                if (@lock is IDebugLock<TLockTags> baseLock)
                 {
                     origin = baseLock.DebugOrigin;
+                    originFile = baseLock.DebugOriginFile;
+                    originLine = baseLock.DebugOriginLine;
                 }
 
                 var lockInfo = new LockDebugInfo
@@ -82,6 +87,8 @@ namespace Migs.MLock.Debugging
                     IncludeTags = @lock.IncludeTags?.ToString(),
                     ExcludeTags = @lock.ExcludeTags?.ToString(),
                     Origin = origin,
+                    OriginFile = originFile,
+                    OriginLine = originLine,
                     AffectedLockables = affected
                 };
                 
@@ -142,10 +149,14 @@ namespace Migs.MLock.Debugging
                     if (!string.IsNullOrEmpty(file) && line > 0)
                     {
                         debugLock.DebugOrigin = $"{className}.{methodName} ({Path.GetFileName(file)}:{line})";
+                        debugLock.DebugOriginFile = file;
+                        debugLock.DebugOriginLine = line;
                     }
                     else
                     {
                         debugLock.DebugOrigin = $"{className}.{methodName}";
+                        debugLock.DebugOriginFile = null;
+                        debugLock.DebugOriginLine = null;
                     }
                     return;
                 }
@@ -153,6 +164,8 @@ namespace Migs.MLock.Debugging
             catch
             {
                 debugLock.DebugOrigin = "Unknown";
+                debugLock.DebugOriginFile = null;
+                debugLock.DebugOriginLine = null;
             }
         }
 

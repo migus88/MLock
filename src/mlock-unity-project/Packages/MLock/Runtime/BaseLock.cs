@@ -36,6 +36,8 @@ namespace Migs.MLock
         /// Debug-only: origin information for where the lock was created
         /// </summary>
         public string DebugOrigin { get; set; }
+        public string DebugOriginFile { get; set; }
+        public int? DebugOriginLine { get; set; }
 
         // Reference to the pool that created this lock, for returning on disposal
         private ILockPool<TLockTags> _pool;

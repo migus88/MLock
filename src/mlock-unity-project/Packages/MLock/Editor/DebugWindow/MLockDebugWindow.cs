@@ -243,15 +243,27 @@ namespace Migs.MLock.Editor.DebugWindow
         {
             EditorGUILayout.BeginVertical(_categoryStyle);
             EditorGUILayout.BeginHorizontal();
-            GUILayout.Label("Service:", _boldLabelStyle, GUILayout.Width(120));
-            GUILayout.Label(lockInfo.LockType);
+            GUILayout.Label("Origin:", _boldLabelStyle, GUILayout.Width(120));
+            var originText = string.IsNullOrEmpty(lockInfo.Origin) ? "Unknown" : lockInfo.Origin;
+            var hasLocation = !string.IsNullOrEmpty(lockInfo.OriginFile) && lockInfo.OriginLine.HasValue;
+            if (hasLocation)
+            {
+                if (EditorGUILayout.LinkButton(originText))
+                {
+                    OpenScriptAtLine(lockInfo.OriginFile, lockInfo.OriginLine.Value);
+                }
+            }
+            else
+            {
+                GUILayout.Label(originText);
+            }
             EditorGUILayout.EndHorizontal();
             EditorGUILayout.EndVertical();
             
             EditorGUILayout.BeginVertical(_categoryStyle);
             EditorGUILayout.BeginHorizontal();
-            GUILayout.Label("Origin:", _boldLabelStyle, GUILayout.Width(120));
-            GUILayout.Label(string.IsNullOrEmpty(lockInfo.Origin) ? "Unknown" : lockInfo.Origin);
+            GUILayout.Label("Service:", _boldLabelStyle, GUILayout.Width(120));
+            GUILayout.Label(lockInfo.LockType);
             EditorGUILayout.EndHorizontal();
             EditorGUILayout.EndVertical();
             
@@ -311,6 +323,17 @@ namespace Migs.MLock.Editor.DebugWindow
                         return lockInfo.AffectedLockables.Any(l => l.ToLower().Contains(_searchText.ToLower()));
                 }
             }).ToList();
+        }
+
+        private static void OpenScriptAtLine(string filePath, int line)
+        {
+            if (string.IsNullOrEmpty(filePath) || line <= 0)
+            {
+                return;
+            }
+
+            // Use Unity internal utility to open external script editor at specific line
+            UnityEditorInternal.InternalEditorUtility.OpenFileAtLineExternal(filePath, line);
         }
     }
 }

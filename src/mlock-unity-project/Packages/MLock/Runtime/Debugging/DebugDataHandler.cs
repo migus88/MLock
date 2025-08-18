@@ -148,6 +148,8 @@ namespace Migs.MLock.Debugging
         /// Where the lock was created (class/method)
         /// </summary>
         public string Origin { get; set; }
+        public string OriginFile { get; set; }
+        public int? OriginLine { get; set; }
         /// <summary>
         /// String representation of all lockables affected by this lock
         /// </summary>
