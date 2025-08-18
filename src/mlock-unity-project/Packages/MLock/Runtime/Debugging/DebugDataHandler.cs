@@ -1,9 +1,8 @@
-using System;
 using System.Collections.Generic;
-using System.Linq;
+using System.Diagnostics;
 using Migs.MLock.Interfaces;
 using UnityEngine;
-using UnityEngine.Scripting;
+using Debug = UnityEngine.Debug;
 
 namespace Migs.MLock.Debugging
 {
@@ -32,6 +31,7 @@ namespace Migs.MLock.Debugging
         /// Register a lock service for debugging
         /// </summary>
         /// <param name="service">The lock service to register</param>
+        [Conditional("UNITY_EDITOR")]
         public static void RegisterLockService(IDebuggableLockService service)
         {
             if (service == null)
@@ -50,6 +50,7 @@ namespace Migs.MLock.Debugging
         /// </summary>
         /// <param name="service">The lock service to unregister</param>
         /// <typeparam name="TLockTags">The enum type used for lock tags</typeparam>
+        [Conditional("UNITY_EDITOR")]
         public static void UnregisterLockService(IDebuggableLockService service)
         {
             if (service == null)
@@ -70,6 +71,7 @@ namespace Migs.MLock.Debugging
         /// Enable or disable debug data collection
         /// </summary>
         /// <param name="enabled">Whether to enable debug data collection</param>
+        [Conditional("UNITY_EDITOR")]
         public static void SetEnabled(bool enabled)
         {
             _isEnabled = enabled;
@@ -78,6 +80,7 @@ namespace Migs.MLock.Debugging
         /// <summary>
         /// Update debug data by scanning all registered lock services
         /// </summary>
+        [Conditional("UNITY_EDITOR")]
         public static void UpdateData()
         {
             if (!Application.isPlaying && (ActiveLocks.Count > 0 || LockServices.Count > 0))
@@ -101,11 +104,16 @@ namespace Migs.MLock.Debugging
             }
         }
         
-        public static bool UnlockById(int lockId)
+        [Conditional("UNITY_EDITOR")]
+        public static void UnlockById(int lockId)
         {
-            return _lockServices.Select(service => service.TryUnlockById(lockId)).FirstOrDefault();
+            foreach (var service in _lockServices)
+            {
+                service.UnlockById(lockId);
+            }
         }
         
+        [Conditional("UNITY_EDITOR")]
         public static void UnlockAll()
         {
             foreach (var service in _lockServices)
@@ -137,8 +145,12 @@ namespace Migs.MLock.Debugging
         /// </summary>
         public string ExcludeTags { get; set; }
         /// <summary>
+        /// Where the lock was created (class/method)
+        /// </summary>
+        public string Origin { get; set; }
+        /// <summary>
         /// String representation of all lockables affected by this lock
         /// </summary>
         public List<string> AffectedLockables { get; set; }
     }
-} 
+}

@@ -220,10 +220,8 @@ namespace Migs.MLock.Editor.DebugWindow
                 
                 if (GUILayout.Button("Unlock", GUILayout.Width(60)))
                 {
-                    if (DebugDataHandler.UnlockById(lockInfo.Id))
-                    {
-                        DebugDataHandler.UpdateData();
-                    }
+                    DebugDataHandler.UnlockById(lockInfo.Id);
+                    DebugDataHandler.UpdateData();
                 }
                 
                 EditorGUILayout.EndHorizontal();
@@ -247,6 +245,13 @@ namespace Migs.MLock.Editor.DebugWindow
             EditorGUILayout.BeginHorizontal();
             GUILayout.Label("Service:", _boldLabelStyle, GUILayout.Width(120));
             GUILayout.Label(lockInfo.LockType);
+            EditorGUILayout.EndHorizontal();
+            EditorGUILayout.EndVertical();
+            
+            EditorGUILayout.BeginVertical(_categoryStyle);
+            EditorGUILayout.BeginHorizontal();
+            GUILayout.Label("Origin:", _boldLabelStyle, GUILayout.Width(120));
+            GUILayout.Label(string.IsNullOrEmpty(lockInfo.Origin) ? "Unknown" : lockInfo.Origin);
             EditorGUILayout.EndHorizontal();
             EditorGUILayout.EndVertical();
             

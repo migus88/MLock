@@ -7,7 +7,7 @@ namespace Migs.MLock
     /// A base implementation of <see cref="ILock{TLockTags}"/> with built-in pooling support
     /// </summary>
     /// <typeparam name="TLockTags">The enum type used for lock tags</typeparam>
-    internal class BaseLock<TLockTags> : ILock<TLockTags> where TLockTags : Enum
+    internal class BaseLock<TLockTags> : IDebugLock<TLockTags> where TLockTags : Enum
     {
         // Static counter for ID generation - much more efficient than GUIDs
         private static int _idCounter;
@@ -31,6 +31,11 @@ namespace Migs.MLock
         /// The lock service that manages this lock
         /// </summary>
         protected ILockService<TLockTags> LockService { get; set; }
+
+        /// <summary>
+        /// Debug-only: origin information for where the lock was created
+        /// </summary>
+        public string DebugOrigin { get; set; }
 
         // Reference to the pool that created this lock, for returning on disposal
         private ILockPool<TLockTags> _pool;

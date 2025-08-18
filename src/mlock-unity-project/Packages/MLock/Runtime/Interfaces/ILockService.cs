@@ -74,7 +74,7 @@ namespace Migs.MLock.Interfaces
     public interface IDebuggableLockService : ILockService
     {
         void PopulateDebugInfo(List<LockDebugInfo> debugInfo);
-        bool TryUnlockById(int lockId);
+        void UnlockById(int lockId);
         void UnlockAll();
     }
 }

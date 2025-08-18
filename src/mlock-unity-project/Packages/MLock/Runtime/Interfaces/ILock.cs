@@ -25,4 +25,9 @@ namespace Migs.MLock.Interfaces
         /// </summary>
         TLockTags ExcludeTags { get; }
     }
+
+    public interface IDebugLock<out TLockTags> : ILock<TLockTags>, IDisposable where TLockTags : Enum
+    {
+        string DebugOrigin { get; set; }
+    }
 }
