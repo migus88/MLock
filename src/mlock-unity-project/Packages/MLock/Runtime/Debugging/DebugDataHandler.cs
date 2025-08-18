@@ -145,11 +145,9 @@ namespace Migs.MLock.Debugging
         /// </summary>
         public string ExcludeTags { get; set; }
         /// <summary>
-        /// Where the lock was created (class/method)
+        /// Full origin frames (filtered stack trace). First frame corresponds to Origin/OriginFile/OriginLine.
         /// </summary>
-        public string Origin { get; set; }
-        public string OriginFile { get; set; }
-        public int? OriginLine { get; set; }
+        public List<DebugOrigin> OriginFrames { get; set; }
         /// <summary>
         /// String representation of all lockables affected by this lock
         /// </summary>

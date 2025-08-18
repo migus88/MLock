@@ -69,15 +69,11 @@ namespace Migs.MLock.Debugging
                     .Select(p => FormatLockable(p.Key))
                     .ToList();
 
-                var origin = "Unknown";
-                string originFile = null;
-                int? originLine = null;
+                List<DebugOrigin> originFrames = null;
                 
-                if (@lock is IDebugLock<TLockTags> baseLock)
+                if (@lock is IDebuggableLock<TLockTags> { DebugOriginFrames: not null } debuggableLock)
                 {
-                    origin = baseLock.DebugOrigin;
-                    originFile = baseLock.DebugOriginFile;
-                    originLine = baseLock.DebugOriginLine;
+                    originFrames = new List<DebugOrigin>(debuggableLock.DebugOriginFrames);
                 }
 
                 var lockInfo = new LockDebugInfo
@@ -86,9 +82,7 @@ namespace Migs.MLock.Debugging
                     LockType = typeof(TLockTags).Name,
                     IncludeTags = @lock.IncludeTags?.ToString(),
                     ExcludeTags = @lock.ExcludeTags?.ToString(),
-                    Origin = origin,
-                    OriginFile = originFile,
-                    OriginLine = originLine,
+                    OriginFrames = originFrames,
                     AffectedLockables = affected
                 };
                 
@@ -115,7 +109,7 @@ namespace Migs.MLock.Debugging
         [Conditional("UNITY_EDITOR")]
         public static void PopulateLockOrigin<TLockTags>(this ILock<TLockTags> @lock) where TLockTags : Enum
         {
-            if (@lock is not IDebugLock<TLockTags> debugLock)
+            if (@lock is not IDebuggableLock<TLockTags> debugLock)
             {
                 return;
             }
@@ -123,6 +117,7 @@ namespace Migs.MLock.Debugging
             try
             {
                 var st = new StackTrace(true);
+                var frames = new List<DebugOrigin>(10);
                 for (var i = 0; i < st.FrameCount; i++)
                 {
                     var frame = st.GetFrame(i);
@@ -145,20 +140,42 @@ namespace Migs.MLock.Debugging
                     var methodName = method.Name;
                     var file = frame.GetFileName();
                     var line = frame.GetFileLineNumber();
+                    var hasLocation = !string.IsNullOrEmpty(file) && line > 0;
+                    var display = $"{className}.{methodName}";
+
+                    frames.Add(new DebugOrigin
+                    {
+                        Display = display,
+                        File = hasLocation ? file : null,
+                        Line = hasLocation ? line : null
+                    });
+
+                    if (frames.Count >= 10)
+                    {
+                        break;
+                    }
+                }
+
+                if (frames.Count > 0)
+                {
+                    debugLock.DebugOriginFrames ??= new List<DebugOrigin>();
+                    debugLock.DebugOriginFrames.Clear();
                     
-                    if (!string.IsNullOrEmpty(file) && line > 0)
+                    foreach (var f in frames)
                     {
-                        debugLock.DebugOrigin = $"{className}.{methodName} ({Path.GetFileName(file)}:{line})";
-                        debugLock.DebugOriginFile = file;
-                        debugLock.DebugOriginLine = line;
+                        debugLock.DebugOriginFrames.Add(f);
                     }
-                    else
-                    {
-                        debugLock.DebugOrigin = $"{className}.{methodName}";
-                        debugLock.DebugOriginFile = null;
-                        debugLock.DebugOriginLine = null;
-                    }
-                    return;
+
+                    var first = frames[0];
+                    debugLock.DebugOrigin = first.Display;
+                    debugLock.DebugOriginFile = first.File;
+                    debugLock.DebugOriginLine = first.Line;
+                }
+                else
+                {
+                    debugLock.DebugOrigin = "Unknown";
+                    debugLock.DebugOriginFile = null;
+                    debugLock.DebugOriginLine = null;
                 }
             }
             catch

@@ -16,6 +16,7 @@ namespace Migs.MLock.Editor.DebugWindow
         private Vector2 _scrollPosition;
         private bool _isAutoRefresh = true;
         private readonly Dictionary<int, bool> _foldoutStates = new Dictionary<int, bool>();
+        private readonly Dictionary<int, bool> _originFoldoutStates = new Dictionary<int, bool>();
         private string _searchText = "";
         private enum SearchType { Lockables, Tags, Includes, Excludes }
         private SearchType _searchType = SearchType.Lockables;
@@ -206,11 +207,9 @@ namespace Migs.MLock.Editor.DebugWindow
                 EditorGUILayout.BeginVertical(_lockItemStyle);
                 
                 // Foldout for lock details
-                if (!_foldoutStates.ContainsKey(lockInfo.Id))
-                {
-                    _foldoutStates[lockInfo.Id] = false; // Collapsed by default
-                }
-                
+                _foldoutStates.TryAdd(lockInfo.Id, false);
+
+                // Collapsed by default
                 EditorGUILayout.BeginHorizontal();
                 
                 _foldoutStates[lockInfo.Id] = EditorGUILayout.Foldout(_foldoutStates[lockInfo.Id], 
@@ -241,25 +240,8 @@ namespace Migs.MLock.Editor.DebugWindow
         
         private void DrawLockDetails(LockDebugInfo lockInfo)
         {
-            EditorGUILayout.BeginVertical(_categoryStyle);
-            EditorGUILayout.BeginHorizontal();
-            GUILayout.Label("Origin:", _boldLabelStyle, GUILayout.Width(120));
-            var originText = string.IsNullOrEmpty(lockInfo.Origin) ? "Unknown" : lockInfo.Origin;
-            var hasLocation = !string.IsNullOrEmpty(lockInfo.OriginFile) && lockInfo.OriginLine.HasValue;
-            if (hasLocation)
-            {
-                if (EditorGUILayout.LinkButton(originText))
-                {
-                    OpenScriptAtLine(lockInfo.OriginFile, lockInfo.OriginLine.Value);
-                }
-            }
-            else
-            {
-                GUILayout.Label(originText);
-            }
-            EditorGUILayout.EndHorizontal();
-            EditorGUILayout.EndVertical();
-            
+            DrawOrigin(lockInfo);
+
             EditorGUILayout.BeginVertical(_categoryStyle);
             EditorGUILayout.BeginHorizontal();
             GUILayout.Label("Service:", _boldLabelStyle, GUILayout.Width(120));
@@ -295,7 +277,71 @@ namespace Migs.MLock.Editor.DebugWindow
                 EditorGUILayout.LabelField(lockable, _affectedItemStyle);
             }
         }
-        
+
+        private void DrawOrigin(LockDebugInfo lockInfo)
+        {
+            EditorGUILayout.BeginVertical(_categoryStyle);
+            EditorGUILayout.BeginHorizontal();
+            GUILayout.Label("Origin:", _boldLabelStyle, GUILayout.Width(120));
+            
+            var hasOrigin = lockInfo.OriginFrames is { Count: >= 1 };
+            var first = lockInfo.OriginFrames?.FirstOrDefault();
+
+            var originText = hasOrigin ? first!.Display : "Unknown";
+
+            // Expandable stack trace
+            var hasFrames = lockInfo.OriginFrames is { Count: > 1 };
+            if (hasFrames)
+            {
+                _originFoldoutStates.TryAdd(lockInfo.Id, false);
+
+                if (EditorGUILayout.LinkButton(originText))
+                {
+                    _originFoldoutStates[lockInfo.Id] = !_originFoldoutStates[lockInfo.Id];
+                }
+            }
+            else
+            {
+                GUILayout.Label(originText);
+            }
+            
+            EditorGUILayout.EndHorizontal();
+
+            DrawStackTrace(lockInfo, hasFrames);
+            EditorGUILayout.EndVertical();
+        }
+
+        private void DrawStackTrace(LockDebugInfo lockInfo, bool hasFrames)
+        {
+            if (!hasFrames || !_originFoldoutStates[lockInfo.Id])
+            {
+                return;
+            }
+            
+            EditorGUI.indentLevel++;
+            EditorGUILayout.Space(10);
+            foreach (var frame in lockInfo.OriginFrames)
+            {
+                if (string.IsNullOrEmpty(frame.File) || frame.Line is not > 0)
+                {
+                    continue;
+                }
+
+                EditorGUILayout.BeginHorizontal();
+                GUILayout.Space(10);
+                
+                GUILayout.Label("> ", GUILayout.Width(10));
+                if (EditorGUILayout.LinkButton(frame.Display))
+                {
+                    OpenScriptAtLine(frame.File, frame.Line.Value);
+                }
+
+                EditorGUILayout.EndHorizontal();
+                EditorGUILayout.Space(3);
+            }
+            EditorGUI.indentLevel--;
+        }
+
         private List<LockDebugInfo> FilterLocks(IEnumerable<LockDebugInfo> locks)
         {
             if (string.IsNullOrEmpty(_searchText))

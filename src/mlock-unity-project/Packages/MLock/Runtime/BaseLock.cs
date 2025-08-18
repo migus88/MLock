@@ -1,4 +1,6 @@
 using System;
+using System.Collections.Generic;
+using Migs.MLock.Debugging;
 using Migs.MLock.Interfaces;
 
 namespace Migs.MLock
@@ -7,41 +9,43 @@ namespace Migs.MLock
     /// A base implementation of <see cref="ILock{TLockTags}"/> with built-in pooling support
     /// </summary>
     /// <typeparam name="TLockTags">The enum type used for lock tags</typeparam>
-    internal class BaseLock<TLockTags> : IDebugLock<TLockTags> where TLockTags : Enum
+    internal class BaseLock<TLockTags> : IDebuggableLock<TLockTags> where TLockTags : Enum
     {
         // Static counter for ID generation - much more efficient than GUIDs
         private static int _idCounter;
-        
+
         /// <summary>
         /// Unique identifier for this lock
         /// </summary>
         public virtual int Id { get; protected set; }
-        
+
         /// <summary>
         /// Tags that this lock applies to (if any)
         /// </summary>
         public TLockTags IncludeTags { get; protected set; }
-        
+
         /// <summary>
         /// Tags that this lock does not apply to (if any)
         /// </summary>
         public TLockTags ExcludeTags { get; protected set; }
-        
+
         /// <summary>
         /// The lock service that manages this lock
         /// </summary>
         protected ILockService<TLockTags> LockService { get; set; }
 
-        /// <summary>
-        /// Debug-only: origin information for where the lock was created
-        /// </summary>
-        public string DebugOrigin { get; set; }
-        public string DebugOriginFile { get; set; }
-        public int? DebugOriginLine { get; set; }
+        #region Debugging
+
+        string IDebuggableLock<TLockTags>.DebugOrigin { get; set; }
+        string IDebuggableLock<TLockTags>.DebugOriginFile { get; set; }
+        int? IDebuggableLock<TLockTags>.DebugOriginLine { get; set; }
+        List<DebugOrigin> IDebuggableLock<TLockTags>.DebugOriginFrames { get; set; } = new();
+
+        #endregion
 
         // Reference to the pool that created this lock, for returning on disposal
         private ILockPool<TLockTags> _pool;
-        
+
         /// <summary>
         /// Creates a new empty lock for pooling
         /// </summary>
@@ -61,7 +65,7 @@ namespace Migs.MLock
         {
             Initialize(lockService, includeTags, excludeTags, pool);
         }
-        
+
         /// <summary>
         /// Initializes or reinitializes the lock with new parameters
         /// </summary>
@@ -103,9 +107,9 @@ namespace Migs.MLock
         public virtual void Dispose()
         {
             LockService.TryUnlocking(this);
-            
+
             // Return to pool if we have one
             _pool?.Return(this);
         }
     }
-} 
+}

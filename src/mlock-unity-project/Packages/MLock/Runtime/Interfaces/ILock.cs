@@ -1,9 +1,11 @@
 using System;
+using System.Collections.Generic;
+using Migs.MLock.Debugging;
 
 namespace Migs.MLock.Interfaces
 {
     public interface ILock { }
-    
+
     /// <summary>
     /// Interface representing a lock that can be applied to lockable objects
     /// </summary>
@@ -26,10 +28,14 @@ namespace Migs.MLock.Interfaces
         TLockTags ExcludeTags { get; }
     }
 
-    public interface IDebugLock<out TLockTags> : ILock<TLockTags>, IDisposable where TLockTags : Enum
+    public interface IDebuggableLock<out TLockTags> : ILock<TLockTags>, IDisposable where TLockTags : Enum
     {
         string DebugOrigin { get; set; }
         string DebugOriginFile { get; set; }
         int? DebugOriginLine { get; set; }
+        /// <summary>
+        /// Full (filtered) origin stack frames for this lock, first item is the summary frame.
+        /// </summary>
+        List<DebugOrigin> DebugOriginFrames { get; set; }
     }
 }
