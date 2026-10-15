@@ -13,6 +13,7 @@ namespace Migs.MLock.Debugging
     {
         public static IReadOnlyList<LockDebugInfo> ActiveLocks => _activeLocks;
         public static IReadOnlyCollection<IDebuggableLockService> LockServices => _lockServices;
+        public static bool IsEnabled => _isEnabled;
         
         // Dictionary to store all lock services by type
         private static readonly HashSet<IDebuggableLockService> _lockServices = new();
@@ -137,6 +138,10 @@ namespace Migs.MLock.Debugging
         /// String representation of the lock type
         /// </summary>
         public string LockType { get; set; }
+        /// <summary>
+        /// How the lock selects lockables: "Include", "Exclude" or "All"
+        /// </summary>
+        public string Mode { get; set; }
         /// <summary>
         /// String representation of all include tags
         /// </summary>

@@ -52,11 +52,9 @@ namespace Migs.MLock.Examples.Shared
 
         public void Subscribe(ILockable<TLockTags> lockable) => _lockService.Subscribe(lockable);
         public void Unsubscribe(ILockable<TLockTags> lockable) => _lockService.Unsubscribe(lockable);
-        public void TryLocking(ILock<TLockTags> @lock) => _lockService.TryLocking(@lock);
-        public void TryUnlocking(ILock<TLockTags> @lock) => _lockService.TryUnlocking(@lock);
-        public ILock<TLockTags> Lock(TLockTags includeTags) => _lockService.Lock(includeTags);
-        public ILock<TLockTags> LockAllExcept(TLockTags excludeTags) => _lockService.LockAllExcept(excludeTags);
-        public ILock<TLockTags> LockAll() => _lockService.LockAll();
+        public LockHandle<TLockTags> Lock(TLockTags includeTags) => _lockService.Lock(includeTags);
+        public LockHandle<TLockTags> LockAllExcept(TLockTags excludeTags) => _lockService.LockAllExcept(excludeTags);
+        public LockHandle<TLockTags> LockAll() => _lockService.LockAll();
         public bool IsLocked(ILockable<TLockTags> lockable) => _lockService.IsLocked(lockable);
     }
 }

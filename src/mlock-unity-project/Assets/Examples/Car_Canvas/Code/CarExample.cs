@@ -29,8 +29,8 @@ namespace Migs.MLock.Examples.Car_Canvas.Code
 
         #region Locks
 
-        private ILock<CarLockTags> _gameLock;
-        private ILock<CarLockTags> _menuLock;
+        private LockHandle<CarLockTags> _gameLock;
+        private LockHandle<CarLockTags> _menuLock;
 
         #endregion
 
@@ -139,8 +139,7 @@ namespace Migs.MLock.Examples.Car_Canvas.Code
             _menuPopup.SetActive(false);
             _languageTooltip.SetActive(false);
 
-            _gameLock?.Dispose();
-            _gameLock = null;
+            _gameLock.Dispose();
         }
 
         private void OnSelectLanguageButtonClicked()
@@ -158,8 +157,7 @@ namespace Migs.MLock.Examples.Car_Canvas.Code
             // Close language tooltip
             _languageTooltip.SetActive(false);
 
-            _menuLock?.Dispose();
-            _menuLock = null;
+            _menuLock.Dispose();
         }
 
         #endregion
