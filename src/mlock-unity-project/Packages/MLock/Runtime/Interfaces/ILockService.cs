@@ -23,8 +23,9 @@ namespace Migs.MLock.Interfaces
         /// </summary>
         /// <param name="lockable">The lockable object to add</param>
         /// <exception cref="ArgumentNullException">Thrown if lockable is null</exception>
+        /// <returns>A subscription that unsubscribes the lockable when disposed</returns>
         /// <exception cref="ArgumentException">Thrown if lockable is already subscribed</exception>
-        void Subscribe(ILockable<TLockTags> lockable);
+        LockSubscription<TLockTags> Subscribe(ILockable<TLockTags> lockable);
 
         /// <summary>
         /// Removes a lockable object from this service.

@@ -130,50 +130,43 @@ void Awake()
 }
 ```
 
-3. Implement the ILockable interface on objects that can be locked:
+3. Make objects lockable with a `LockGate`:
 
 ```csharp
-using Migs.MLock.Interfaces;
+using Migs.MLock;
 using UnityEngine;
 
-public class PlayerController : MonoBehaviour, ILockable<GameplayFeatures>
+public class PlayerController : MonoBehaviour
 {
-    public GameplayFeatures LockTags => GameplayFeatures.Movement;
-    
-    private bool _isLocked = false;
+    private LockGate<GameplayFeatures> _gate;
 
     public void Start()
     {
         // Don't actually do that - use a proper DI framework
-        GameManager.Instance.LockService.Subscribe(this);
+        _gate = new LockGate<GameplayFeatures>(GameManager.Instance.LockService, GameplayFeatures.Movement, OnLockChanged);
     }
 
     public void OnDestroy()
     {
-        GameManager.Instance.LockService.Unsubscribe(this);
+        _gate.Dispose();
     }
-    
-    public void HandleLocking()
+
+    private void OnLockChanged(bool isLocked)
     {
-        _isLocked = true;
-        // Disable movement logic here
+        // Optional: react to locking and unlocking
     }
-    
-    public void HandleUnlocking()
-    {
-        _isLocked = false;
-        // Enable movement logic here
-    }
-    
+
     void Update()
     {
-        if (!_isLocked)
+        if (!_gate.IsLocked)
         {
             // Movement logic here
         }
     }
 }
 ```
+
+The gate starts locked (and calls `OnLockChanged(true)`) if a matching lock is already active. Disposing it unsubscribes it without a callback.
 
 4. Create and use locks:
 
@@ -252,6 +245,25 @@ public MenuController(ILockService<GameplayFeatures> lockService)
 
 void OnMenuVisibilityChanged(bool isVisible) => _menuLock.Set(isVisible);
 void OnDestroy() => _menuLock.Dispose();
+```
+
+### Custom lockables
+
+To handle locking yourself, implement `ILockable<T>` and keep the `LockSubscription<T>` that `Subscribe` returns. Store it as a `LockSubscription<T>` field, not as an `IDisposable`, which boxes it. Disposing it unsubscribes the lockable; disposing twice, a copy or a `default` subscription is safe. `Unsubscribe(lockable)` still works too.
+
+```csharp
+public class PlayerController : MonoBehaviour, ILockable<GameplayFeatures>
+{
+    private LockSubscription<GameplayFeatures> _subscription;
+
+    public GameplayFeatures LockTags => GameplayFeatures.Movement;
+
+    public void Start() => _subscription = GameManager.Instance.LockService.Subscribe(this);
+    public void OnDestroy() => _subscription.Dispose();
+
+    public void HandleLocking() { /* Disable movement */ }
+    public void HandleUnlocking() { /* Enable movement */ }
+}
 ```
 
 ### Contracts

@@ -17,7 +17,7 @@ namespace Migs.MLock
     {
         private readonly SlotTable<LockEntry<TLockTags>> _locks;
         private readonly SlotTable<SubscriberEntry<TLockTags>> _subscribers;
-        private readonly Dictionary<ILockable<TLockTags>, int> _subscriberSlots;
+        private readonly Dictionary<ILockable<TLockTags>, (int Slot, int Generation)> _subscriberSlots;
 
         /// <summary>
         /// Creates a new lock service
@@ -39,11 +39,11 @@ namespace Migs.MLock
 
             _locks = new SlotTable<LockEntry<TLockTags>>(lockCapacity);
             _subscribers = new SlotTable<SubscriberEntry<TLockTags>>(lockableCapacity);
-            _subscriberSlots = new Dictionary<ILockable<TLockTags>, int>(lockableCapacity);
+            _subscriberSlots = new Dictionary<ILockable<TLockTags>, (int Slot, int Generation)>(lockableCapacity);
         }
 
         /// <inheritdoc />
-        public void Subscribe(ILockable<TLockTags> lockable)
+        public LockSubscription<TLockTags> Subscribe(ILockable<TLockTags> lockable)
         {
             if (lockable == null)
             {
@@ -73,14 +73,16 @@ namespace Migs.MLock
                 Lockable = lockable,
                 Tags = tags,
                 LockCount = lockCount
-            }, out _);
+            }, out var generation);
 
-            _subscriberSlots.Add(lockable, slot);
+            _subscriberSlots.Add(lockable, (slot, generation));
 
             if (lockCount > 0)
             {
                 lockable.HandleLocking();
             }
+
+            return new LockSubscription<TLockTags>(this, slot, generation);
         }
 
         /// <inheritdoc />
@@ -91,18 +93,12 @@ namespace Migs.MLock
                 throw new ArgumentNullException(nameof(lockable), "Lockable cannot be null");
             }
 
-            if (!_subscriberSlots.TryGetValue(lockable, out var slot))
+            if (!_subscriberSlots.TryGetValue(lockable, out var subscription))
             {
                 return;
             }
 
-            _subscriberSlots.Remove(lockable);
-            _subscribers.TryRemove(slot, _subscribers.GenerationOf(slot), out var removed);
-
-            if (removed.LockCount > 0)
-            {
-                lockable.HandleUnlocking();
-            }
+            RemoveSubscriber(subscription.Slot, subscription.Generation);
         }
 
         /// <inheritdoc />
@@ -131,7 +127,17 @@ namespace Migs.MLock
                 throw new ArgumentNullException(nameof(lockable), "Lockable cannot be null");
             }
 
-            return _subscriberSlots.TryGetValue(lockable, out var slot) && _subscribers.Get(slot).LockCount > 0;
+            return _subscriberSlots.TryGetValue(lockable, out var subscription) && _subscribers.Get(subscription.Slot).LockCount > 0;
+        }
+
+        internal bool IsSubscriptionActive(int slot, int generation)
+        {
+            return _subscribers.IsAlive(slot, generation);
+        }
+
+        internal void ReleaseSubscription(int slot, int generation)
+        {
+            RemoveSubscriber(slot, generation);
         }
 
         internal bool IsLockActive(int slot, int generation)
@@ -161,6 +167,21 @@ namespace Migs.MLock
                 {
                     subscriber.Lockable.HandleUnlocking();
                 }
+            }
+        }
+
+        private void RemoveSubscriber(int slot, int generation)
+        {
+            if (!_subscribers.TryRemove(slot, generation, out var removed))
+            {
+                return;
+            }
+
+            _subscriberSlots.Remove(removed.Lockable);
+
+            if (removed.LockCount > 0)
+            {
+                removed.Lockable.HandleUnlocking();
             }
         }
 

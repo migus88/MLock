@@ -50,7 +50,7 @@ namespace Migs.MLock.Examples.Shared
                 .WithDebug<TLockTags, BaseLockService<TLockTags>>();
         }
 
-        public void Subscribe(ILockable<TLockTags> lockable) => _lockService.Subscribe(lockable);
+        public LockSubscription<TLockTags> Subscribe(ILockable<TLockTags> lockable) => _lockService.Subscribe(lockable);
         public void Unsubscribe(ILockable<TLockTags> lockable) => _lockService.Unsubscribe(lockable);
         public LockHandle<TLockTags> Lock(TLockTags includeTags) => _lockService.Lock(includeTags);
         public LockHandle<TLockTags> LockAllExcept(TLockTags excludeTags) => _lockService.LockAllExcept(excludeTags);
