@@ -20,6 +20,7 @@
 ### Added
 - `LockHandle<TLockTags>.IsActive`.
 - `DebugDataHandler.IsEnabled` and `LockDebugInfo.Mode`.
+- `LockSwitch<TLockTags>`, a lock toggled by `Set(bool)`, created with the `CreateSwitch`, `CreateSwitchAllExcept` and `CreateSwitchAll` extensions on `ILockService<TLockTags>`.
 
 ### Upgrading from 2.x
 - Change `ILock<T>` fields and variables to `LockHandle<T>`. Store a handle as a `LockHandle<T>`, never as `IDisposable`: that boxes it.

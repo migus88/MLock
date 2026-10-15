@@ -238,6 +238,22 @@ void OpenMenu() => _menuLock = _lockService.Lock(GameplayFeatures.Movement);
 void CloseMenu() => _menuLock.Dispose();
 ```
 
+### State-driven locks (LockSwitch)
+
+When a lock follows a state (a menu is open, a console is visible), a `LockSwitch<T>` replaces the hand-written "lock if not locked yet, release if held" bookkeeping. Create it once, store it in a field, and toggle it with `Set(bool)`: setting the current state again does nothing, so it never holds more than one lock, and toggling allocates nothing. Dispose it at teardown; after that `Set` does nothing.
+
+```csharp
+private readonly LockSwitch<GameplayFeatures> _menuLock;
+
+public MenuController(ILockService<GameplayFeatures> lockService)
+{
+    _menuLock = lockService.CreateSwitch(GameplayFeatures.Movement); // or CreateSwitchAllExcept(...), CreateSwitchAll()
+}
+
+void OnMenuVisibilityChanged(bool isVisible) => _menuLock.Set(isVisible);
+void OnDestroy() => _menuLock.Dispose();
+```
+
 ### Contracts
 
 - A lockable's `LockTags` are read once, at `Subscribe`, and must not change while it is subscribed: unsubscribe and subscribe again to change them.
