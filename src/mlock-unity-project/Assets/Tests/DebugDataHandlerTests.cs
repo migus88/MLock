@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using FluentAssertions;
 using Migs.MLock.Debugging;
 using Migs.MLock.Interfaces;
@@ -11,6 +12,8 @@ namespace Migs.MLock.Tests
 {
     public class DebugDataHandlerTests
     {
+        private int _retainedCount;
+
         [SetUp]
         public void Setup()
         {
@@ -20,6 +23,11 @@ namespace Migs.MLock.Tests
         [TearDown]
         public void TearDown()
         {
+            for (; _retainedCount > 0; _retainedCount--)
+            {
+                DebugDataHandler.ReleaseCapture();
+            }
+
             DebugDataHandler.SetEnabled(false);
             DebugDataHandler.Reset();
         }
@@ -121,6 +129,78 @@ namespace Migs.MLock.Tests
             // Assert
             DebugDataHandler.LockServices.Should().BeEmpty();
             DebugDataHandler.ActiveLocks.Should().BeEmpty();
+        }
+
+        [Test]
+        public void ReleaseCapture_WhileAnotherWindowRetains_KeepsCaptureEnabled()
+        {
+            // Arrange
+            Retain();
+            Retain();
+
+            // Act
+            Release();
+
+            // Assert
+            DebugDataHandler.IsEnabled.Should().BeTrue();
+        }
+
+        [Test]
+        public void ReleaseCapture_ByLastWindow_DisablesCapture()
+        {
+            // Arrange
+            var service = new BaseLockService<TestLockTags>();
+            Retain();
+
+            // Act
+            Release();
+
+            // Assert
+            DebugDataHandler.IsEnabled.Should().BeFalse();
+            var activeLock = service.Lock(TestLockTags.Tag1);
+            var debugInfo = new List<LockDebugInfo>();
+            ((IDebuggableLockService)service).PopulateDebugInfo(debugInfo);
+            debugInfo.Should().ContainSingle().Which.OriginFrames.Should().BeNull();
+        }
+
+        [Test]
+        public void ReleaseCapture_WithoutRetain_StaysDisabled()
+        {
+            // Arrange
+            DebugDataHandler.ReleaseCapture();
+            Retain();
+
+            // Act
+            Release();
+
+            // Assert
+            DebugDataHandler.IsEnabled.Should().BeFalse();
+        }
+
+        [Test]
+        public void ReleaseCapture_ByLastWindow_WhenSetEnabled_KeepsCaptureEnabled()
+        {
+            // Arrange
+            DebugDataHandler.SetEnabled(true);
+            Retain();
+
+            // Act
+            Release();
+
+            // Assert
+            DebugDataHandler.IsEnabled.Should().BeTrue();
+        }
+
+        private void Retain()
+        {
+            DebugDataHandler.RetainCapture();
+            _retainedCount++;
+        }
+
+        private void Release()
+        {
+            DebugDataHandler.ReleaseCapture();
+            _retainedCount--;
         }
 
         private static ILockable<TestLockTags> CreateLockable(TestLockTags tags)

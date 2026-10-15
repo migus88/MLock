@@ -55,4 +55,4 @@ DebugDataHandler.UnregisterLockService(lockService);
 
 - Debug features only work in Editor mode and have no impact on builds
 - Registered services are cleared when Play mode starts and when it exits, so services from earlier sessions never show up
-- Lock origins (the call stack that created a lock) are captured only while a debug window is open 
+- Lock origins (the call stack that created a lock) are captured only while a debug window is open; `DebugDataHandler.SetEnabled(true)` turns capture on without a window 
