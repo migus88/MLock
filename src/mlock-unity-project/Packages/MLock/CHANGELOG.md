@@ -17,6 +17,7 @@
 - Enums with values outside the `uint` range (negative members, `~0`, `ulong` flags above bit 31) threw or were truncated; every underlying type is now supported.
 - Locking, unlocking, subscribing and unsubscribing no longer allocate after warm-up.
 - Lock origins (stack traces) are captured only while a debug window is open.
+- Subscribing, unsubscribing, locking or releasing from inside `HandleLocking`/`HandleUnlocking` no longer double-counts, skips or unpairs notifications: each lockable gets alternating calls and the last one matches its final state. A lockable unsubscribed before its pending `HandleLocking` is delivered gets neither call.
 
 ### Added
 - `LockHandle<TLockTags>.IsActive`.
