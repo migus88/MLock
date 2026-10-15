@@ -1,3 +1,4 @@
+#nullable enable
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
@@ -24,6 +25,20 @@ namespace Migs.MLock.Debugging
         }
 
         /// <summary>
+        /// Unregisters this lock service from the debug system
+        /// </summary>
+        public static ILockService<TLockTags> WithoutDebug<TLockTags>(this ILockService<TLockTags> service)
+            where TLockTags : Enum
+        {
+            if (service is IDebuggableLockService debuggableService)
+            {
+                return debuggableService.WithoutDebug<TLockTags>();
+            }
+
+            throw new Exception($"Service is not implementing {nameof(IDebuggableLockService)}");
+        }
+
+        /// <summary>
         /// Registers this lock service with the debug system
         /// </summary>
         public static ILockService<TLockTags> WithDebug<TLockTags>(this IDebuggableLockService service)
@@ -37,7 +52,7 @@ namespace Migs.MLock.Debugging
             where TCast : class, ILockService<TLockTags>
         {
             DebugDataHandler.RegisterLockService(service);
-            return service as TCast;
+            return service as TCast ?? throw new InvalidCastException($"Service is not a {typeof(TCast).Name}");
         }
 
         /// <summary>
@@ -54,13 +69,13 @@ namespace Migs.MLock.Debugging
             where TCast : class, ILockService<TLockTags>
         {
             DebugDataHandler.UnregisterLockService(service);
-            return service as TCast;
+            return service as TCast ?? throw new InvalidCastException($"Service is not a {typeof(TCast).Name}");
         }
         
         /// <summary>
         /// Captures the call stack outside MLock that created a lock (at most 10 frames), or null when none is found
         /// </summary>
-        internal static List<DebugOrigin> CaptureOrigin()
+        internal static List<DebugOrigin>? CaptureOrigin()
         {
             try
             {
@@ -71,8 +86,14 @@ namespace Migs.MLock.Debugging
                 {
                     var frame = st.GetFrame(i);
                     var method = frame.GetMethod();
-                    var declaring = method?.DeclaringType;
-                    
+
+                    if (method == null)
+                    {
+                        continue;
+                    }
+
+                    var declaring = method.DeclaringType;
+
                     if (declaring == null || declaring.Assembly == mlockAssembly)
                     {
                         continue;
@@ -106,7 +127,7 @@ namespace Migs.MLock.Debugging
             }
         }
 
-        internal static string FormatLockable(object lockable)
+        internal static string FormatLockable(object? lockable)
         {
             if (lockable == null)
             {
@@ -115,11 +136,11 @@ namespace Migs.MLock.Debugging
 
             if (lockable is not Component component)
             {
-                return lockable.ToString();
+                return lockable.ToString() ?? string.Empty;
             }
             
-            var goName = component && component.gameObject ? component.gameObject.name : null;
             var typeName = component.GetType().Name;
+            var goName = component && component.gameObject ? component.gameObject.name : null;
             
             return goName != null 
                 ? $"{typeName}.{goName}" 

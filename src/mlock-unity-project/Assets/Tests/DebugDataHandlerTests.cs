@@ -90,6 +90,19 @@ namespace Migs.MLock.Tests
         }
 
         [Test]
+        public void WithoutDebug_OnLockService_UnregistersService()
+        {
+            // Arrange
+            var service = new BaseLockService<TestLockTags>().WithDebug();
+
+            // Act
+            service.WithoutDebug();
+
+            // Assert
+            DebugDataHandler.LockServices.Should().NotContain((IDebuggableLockService)service);
+        }
+
+        [Test]
         public void Reset_WithRegisteredServices_ClearsRegistry()
         {
             // Arrange

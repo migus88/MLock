@@ -1,3 +1,4 @@
+#nullable enable
 using System;
 
 namespace Migs.MLock.Interfaces
@@ -6,7 +7,7 @@ namespace Migs.MLock.Interfaces
     /// Interface for objects that can be locked by locks
     /// </summary>
     /// <typeparam name="TLockTags">The enum type used for lock tags</typeparam>
-    public interface ILockable<out TLockTags> where TLockTags : Enum
+    public interface ILockable<TLockTags> where TLockTags : Enum
     {
         /// <summary>
         /// The tags associated with this lockable object

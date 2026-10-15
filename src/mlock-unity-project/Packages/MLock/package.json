@@ -4,7 +4,7 @@
   "version": "3.0.0",
   "unity": "2022.3",
   "description": "A flexible and efficient lock system for Unity that manages access to gameplay elements based on configurable tags.",
-  "documentationUrl": "https://github.com/",
+  "documentationUrl": "https://github.com/migus88/MLock#readme",
   "changelogUrl": "https://github.com/migus88/MLock/blob/main/src/mlock-unity-project/Packages/MLock/CHANGELOG.md",
   "keywords": [
     "lock",
