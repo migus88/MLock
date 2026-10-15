@@ -10,6 +10,7 @@
 - `Lock(None)` locks nothing (it used to lock everything). `LockAll()` locks everything, and `LockAllExcept(None)` too.
 - A lockable's `LockTags` are read once, at `Subscribe`. Changing them while subscribed has no effect; unsubscribe and subscribe again instead.
 - `Unsubscribe` calls `HandleUnlocking` only when the lockable is locked.
+- `ILockService<TLockTags>.Subscribe` returns a `LockSubscription<TLockTags>` instead of `void`.
 
 ### Fixed
 - Disposing a lock twice could release a newer lock that reused the pooled instance.
@@ -19,6 +20,8 @@
 
 ### Added
 - `LockHandle<TLockTags>.IsActive`.
+- `LockGate<TLockTags>`: a ready-made lockable with `IsLocked` and an optional `onChanged` callback, disposed to unsubscribe.
+- `LockSubscription<TLockTags>`, returned by `Subscribe`: disposing it unsubscribes the lockable, and disposing twice, a stale copy or a `default` subscription does nothing.
 - `DebugDataHandler.IsEnabled` and `LockDebugInfo.Mode`.
 - `LockSwitch<TLockTags>`, a lock toggled by `Set(bool)`, created with the `CreateSwitch`, `CreateSwitchAllExcept` and `CreateSwitchAll` extensions on `ILockService<TLockTags>`.
 
@@ -29,3 +32,4 @@
 - Rename `poolsInitialCapacity` to `lockCapacity` (and set `lockableCapacity` if you subscribe many lockables).
 - If you relied on `Lock(None)` locking everything, call `LockAll()`.
 - If a lockable changes its `LockTags` at runtime, unsubscribe it before the change and subscribe it again after.
+- Custom `ILockService<T>` implementations return the `LockSubscription<T>` from `Subscribe` (forward it from the wrapped service). Callers that ignore the result need no change, and `Unsubscribe(lockable)` still works.
