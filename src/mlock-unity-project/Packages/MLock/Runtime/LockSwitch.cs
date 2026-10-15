@@ -11,6 +11,9 @@ namespace Migs.MLock
     /// and toggle it as often as needed; toggling allocates nothing.
     /// <see cref="IsOn"/> is the requested state: if the debug tools force-release the lock, the switch still
     /// reports on until the next <c>Set(false)</c>, which is then safe.
+    /// <see cref="Set"/> may be called from lockable callbacks, including during the switch's own
+    /// <c>Set(true)</c>: the last call wins and the switch never holds more than one lock.
+    /// If taking the lock throws, the switch stays off and the exception propagates.
     /// </summary>
     /// <typeparam name="TLockTags">The enum type used for lock tags</typeparam>
     public sealed class LockSwitch<TLockTags> : IDisposable where TLockTags : Enum
@@ -22,6 +25,7 @@ namespace Migs.MLock
         private LockHandle<TLockTags> _handle;
         private bool _isOn;
         private bool _isDisposed;
+        private int _version;
 
         /// <summary>
         /// Whether the switch is on, i.e. its lock was requested and not released
@@ -70,9 +74,25 @@ namespace Migs.MLock
             }
 
             _isOn = true;
-            var handle = Acquire();
+            _version = unchecked(_version + 1);
+            var version = _version;
+            LockHandle<TLockTags> handle;
 
-            if (!_isOn || _isDisposed)
+            try
+            {
+                handle = Acquire();
+            }
+            catch
+            {
+                if (version == _version)
+                {
+                    _isOn = false;
+                }
+
+                throw;
+            }
+
+            if (version != _version || _isDisposed)
             {
                 handle.Dispose();
                 return;
@@ -89,6 +109,7 @@ namespace Migs.MLock
             }
 
             _isOn = false;
+            _version = unchecked(_version + 1);
             var handle = _handle;
             _handle = default;
             handle.Dispose();

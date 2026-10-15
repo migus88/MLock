@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using FluentAssertions;
 using Migs.MLock.Debugging;
 using Migs.MLock.Interfaces;
@@ -194,6 +195,71 @@ namespace Migs.MLock.Tests
             lockSwitch.IsOn.Should().BeFalse();
             _tag1Lockable.IsLocked.Should().BeFalse();
             _lockService.IsLocked(_tag1Lockable).Should().BeFalse();
+        }
+
+        [Test]
+        public void Set_WhenCallbackTurnsSwitchOffAndOnDuringAcquire_KeepsExactlyOneLock()
+        {
+            // Arrange
+            var lockSwitch = _lockService.CreateSwitch(TestLockTags.Tag1);
+            _tag1Lockable.OnLocking = () =>
+            {
+                _tag1Lockable.OnLocking = null;
+                lockSwitch.Set(false);
+                lockSwitch.Set(true);
+            };
+            var debugInfo = new List<LockDebugInfo>();
+
+            // Act
+            lockSwitch.Set(true);
+            _lockService.PopulateDebugInfo(debugInfo);
+            var activeLocksWhileOn = debugInfo.Count;
+            lockSwitch.Set(false);
+
+            // Assert
+            activeLocksWhileOn.Should().Be(1);
+            lockSwitch.IsOn.Should().BeFalse();
+            _lockService.IsLocked(_tag1Lockable).Should().BeFalse();
+            _tag1Lockable.IsLocked.Should().BeFalse();
+        }
+
+        [Test]
+        public void Set_WhenCallbackSetsTrueAgainDuringAcquire_KeepsTheLock()
+        {
+            // Arrange
+            var lockSwitch = _lockService.CreateSwitch(TestLockTags.Tag1);
+            _tag1Lockable.OnLocking = () => lockSwitch.Set(true);
+
+            // Act
+            lockSwitch.Set(true);
+            var isLockedWhileOn = _lockService.IsLocked(_tag1Lockable);
+            lockSwitch.Set(false);
+
+            // Assert
+            isLockedWhileOn.Should().BeTrue();
+            lockSwitch.IsOn.Should().BeFalse();
+            _lockService.IsLocked(_tag1Lockable).Should().BeFalse();
+            _tag1Lockable.IsLocked.Should().BeFalse();
+        }
+
+        [Test]
+        public void SetTrue_WhenLockingCallbackThrows_RethrowsAndStaysOff()
+        {
+            // Arrange
+            var lockSwitch = _lockService.CreateSwitch(TestLockTags.Tag1);
+            _tag1Lockable.OnLocking = () => throw new InvalidOperationException("callback failure");
+
+            // Act
+            Action act = () => lockSwitch.Set(true);
+
+            // Assert
+            act.Should().Throw<InvalidOperationException>().WithMessage("callback failure");
+            lockSwitch.IsOn.Should().BeFalse();
+            _lockService.IsLocked(_tag1Lockable).Should().BeFalse();
+            _tag1Lockable.OnLocking = null;
+            lockSwitch.Set(true);
+            _lockService.IsLocked(_tag1Lockable).Should().BeTrue();
+            lockSwitch.Dispose();
         }
 
         [TestCase(SwitchKind.Include)]
