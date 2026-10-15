@@ -46,7 +46,9 @@ namespace Migs.MLock
 
             _locks = new SlotTable<LockEntry<TLockTags>>(lockCapacity);
             _subscribers = new SlotTable<SubscriberEntry<TLockTags>>(lockableCapacity);
-            _subscriberSlots = new Dictionary<ILockable<TLockTags>, (int Slot, int Generation)>(lockableCapacity);
+            _subscriberSlots = new Dictionary<ILockable<TLockTags>, (int Slot, int Generation)>(
+                lockableCapacity,
+                ReferenceComparer<ILockable<TLockTags>>.Instance);
             _pending = new SlotRef[Math.Max(lockableCapacity, 1)];
         }
 

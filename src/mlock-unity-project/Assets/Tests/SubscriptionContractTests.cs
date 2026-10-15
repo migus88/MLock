@@ -1,4 +1,5 @@
 using FluentAssertions;
+using Migs.MLock.Interfaces;
 using Migs.MLock.Tests.Integration;
 using NUnit.Framework;
 
@@ -141,6 +142,78 @@ namespace Migs.MLock.Tests
             last.LockCalls.Should().Be(1);
 
             tag2Lock.Dispose();
+        }
+
+        [Test]
+        public void Subscribe_TwoDistinctLockablesThatAreEqual_BothSubscribe()
+        {
+            // Arrange
+            var first = new AlwaysEqualLockable(TestLockTags.Tag1);
+            var second = new AlwaysEqualLockable(TestLockTags.Tag1);
+
+            // Act
+            _lockService.Subscribe(first);
+            _lockService.Subscribe(second);
+            var handle = _lockService.Lock(TestLockTags.Tag1);
+
+            // Assert
+            first.LockCalls.Should().Be(1);
+            second.LockCalls.Should().Be(1);
+            _lockService.IsLocked(first).Should().BeTrue();
+            _lockService.IsLocked(second).Should().BeTrue();
+
+            handle.Dispose();
+        }
+
+        [Test]
+        public void Unsubscribe_EqualButDistinctLockable_DoesNotRemoveTheOther()
+        {
+            // Arrange
+            var subscribed = new AlwaysEqualLockable(TestLockTags.Tag1);
+            var stranger = new AlwaysEqualLockable(TestLockTags.Tag1);
+            _lockService.Subscribe(subscribed);
+
+            // Act
+            _lockService.Unsubscribe(stranger);
+            var handle = _lockService.Lock(TestLockTags.Tag1);
+
+            // Assert
+            _lockService.IsLocked(subscribed).Should().BeTrue();
+            _lockService.IsLocked(stranger).Should().BeFalse();
+            subscribed.LockCalls.Should().Be(1);
+            stranger.LockCalls.Should().Be(0);
+
+            handle.Dispose();
+        }
+
+        private sealed class AlwaysEqualLockable : ILockable<TestLockTags>
+        {
+            public TestLockTags LockTags { get; }
+            public int LockCalls { get; private set; }
+
+            public AlwaysEqualLockable(TestLockTags tags)
+            {
+                LockTags = tags;
+            }
+
+            public void HandleLocking()
+            {
+                LockCalls++;
+            }
+
+            public void HandleUnlocking()
+            {
+            }
+
+            public override bool Equals(object obj)
+            {
+                return true;
+            }
+
+            public override int GetHashCode()
+            {
+                return 0;
+            }
         }
     }
 }
