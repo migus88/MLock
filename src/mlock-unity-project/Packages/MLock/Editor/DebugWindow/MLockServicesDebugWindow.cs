@@ -24,13 +24,15 @@ namespace Migs.MLock.Editor.DebugWindow
         
         private void OnEnable()
         {
-            // Enable debug data collection
-            DebugDataHandler.SetEnabled(true);
+            // Keep debug data collection on while this window is open
+            DebugDataHandler.RetainCapture();
             EditorApplication.update += OnEditorUpdate;
         }
         
         private void OnDisable()
         {
+            // Stop debug data collection once no debug window is open
+            DebugDataHandler.ReleaseCapture();
             EditorApplication.update -= OnEditorUpdate;
         }
         

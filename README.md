@@ -312,7 +312,7 @@ var lockService = new BaseLockService<GameplayFeatures>().WithDebug();
 lockService.WithoutDebug();
 ```
 
-`DebugDataHandler.RegisterLockService(service)` and `DebugDataHandler.UnregisterLockService(service)` do the same by hand. Lock origins (the call stack that created a lock) are captured only while a debug window is open.
+`DebugDataHandler.RegisterLockService(service)` and `DebugDataHandler.UnregisterLockService(service)` do the same by hand. Lock origins (the call stack that created a lock) are captured only while a debug window is open. `DebugDataHandler.SetEnabled(true)` turns capture on without a window.
 
 ### Debug Window Features
 

@@ -14,7 +14,10 @@ namespace Migs.MLock.Debugging
     {
         public static IReadOnlyList<LockDebugInfo> ActiveLocks => _activeLocks;
         public static IReadOnlyCollection<IDebuggableLockService> LockServices => _lockServices;
-        public static bool IsEnabled => _isEnabled;
+        /// <summary>
+        /// True while debug data collection is on: while at least one debug window is open, or after <see cref="SetEnabled"/> turned it on
+        /// </summary>
+        public static bool IsEnabled => _isEnabled || _windowCount > 0;
         
         // Dictionary to store all lock services by type
         private static readonly HashSet<IDebuggableLockService> _lockServices = new();
@@ -27,6 +30,9 @@ namespace Migs.MLock.Debugging
         
         // Is debug data collection enabled
         private static bool _isEnabled;
+        
+        // Number of open debug windows that need debug data collection
+        private static int _windowCount;
         
         /// <summary>
         /// Register a lock service for debugging
@@ -70,12 +76,33 @@ namespace Migs.MLock.Debugging
         }
         
         /// <summary>
+        /// Called by a debug window when it opens. Collection stays on while at least one window has retained it
+        /// </summary>
+        [Conditional("UNITY_EDITOR")]
+        internal static void RetainCapture()
+        {
+            _windowCount++;
+        }
+        
+        /// <summary>
+        /// Called by a debug window when it closes. Collection stops once no window retains it, unless <see cref="SetEnabled"/> turned it on
+        /// </summary>
+        [Conditional("UNITY_EDITOR")]
+        internal static void ReleaseCapture()
+        {
+            if (_windowCount > 0)
+            {
+                _windowCount--;
+            }
+        }
+        
+        /// <summary>
         /// Update debug data by scanning all registered lock services
         /// </summary>
         [Conditional("UNITY_EDITOR")]
         public static void UpdateData()
         {
-            if (!_isEnabled || Time.realtimeSinceStartup - _lastUpdateTime < 1f)
+            if (!IsEnabled || Time.realtimeSinceStartup - _lastUpdateTime < 1f)
             {
                 return;
             }
