@@ -1,5 +1,19 @@
 # Changelog
 
+## [3.0.1] - 2026-10-16
+
+### Fixed
+- Subscriptions are keyed by reference identity instead of `Equals`, so two distinct lockables that compare equal (records, overridden `Equals`) both subscribe, and `Unsubscribe`/`IsLocked` never act on the wrong one. A destroyed `UnityEngine.Object` lockable is still found.
+- A `Lock`, `LockAllExcept` or `LockAll` whose callback throws no longer leaves a lock without a handle; the lock is rolled back and the exception rethrown.
+- An exception thrown by `HandleLocking`/`HandleUnlocking` no longer skips the remaining lockables; every lockable is notified, then the exception is rethrown.
+- A `Subscribe` whose `HandleLocking` throws is rolled back, so it leaves no subscription behind. A lockable whose `HandleLocking` threw still receives the matching `HandleUnlocking`.
+- A `LockSwitch` turned off and on again by a callback during its own `Set(true)` no longer leaks a lock, and a switch whose lock callback throws stays off instead of reporting on without a lock.
+- Closing the Services debug window now stops lock origin capture once no debug window is open.
+
+### Changed
+- When several lockable callbacks throw during one notification, they are rethrown together as one `AggregateException` in notification order; a single exception is rethrown as-is with its original stack trace.
+- The debug Unlock All keeps its own snapshot of active locks and releases all of them even when a callback throws.
+
 ## [3.0.0] - 2026-10-15
 
 ### Breaking changes

@@ -2,7 +2,7 @@
 
 [![Unity Version](https://img.shields.io/badge/Unity-2022.3+-blue.svg)](https://unity.com/releases/editor/whats-new/2022.3.0)
 [![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
-[![Version](https://img.shields.io/badge/Version-3.0.0-blue.svg)](src/mlock-unity-project/Packages/MLock/package.json)
+[![Version](https://img.shields.io/badge/Version-3.0.1-blue.svg)](src/mlock-unity-project/Packages/MLock/package.json)
 
 A flexible and efficient lock system for Unity that manages access to gameplay elements based on configurable tags.
 
@@ -70,7 +70,7 @@ Add the OpenUPM scoped registry and the package to your `manifest.json` file in 
     }
   ],
   "dependencies": {
-    "com.migsweb.mlock": "3.0.0",
+    "com.migsweb.mlock": "3.0.1",
     // other dependencies...
   }
 }
@@ -88,7 +88,7 @@ Add the OpenUPM scoped registry and the package to your `manifest.json` file in 
 
 To use a specific version, add a tag to the URL:
 ```
-https://github.com/migus88/MLock.git?path=/src/mlock-unity-project/Packages/MLock#3.0.0
+https://github.com/migus88/MLock.git?path=/src/mlock-unity-project/Packages/MLock#3.0.1
 ```
 </details>
 
