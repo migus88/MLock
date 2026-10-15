@@ -1,6 +1,7 @@
 #nullable enable
 using System;
 using System.Collections.Generic;
+using System.Runtime.ExceptionServices;
 using Migs.MLock.Debugging;
 using Migs.MLock.Interfaces;
 using Migs.MLock.Storage;
@@ -14,6 +15,9 @@ namespace Migs.MLock
     /// Every operation first updates the lock counts and only then notifies lockables, comparing each one's
     /// count with the state it was last told about, so the service stays consistent when a callback
     /// subscribes, unsubscribes, locks or releases.
+    /// Callbacks may throw: every queued lockable is still notified, then the exception is rethrown
+    /// (several at once as one <see cref="AggregateException"/>). A <c>Lock</c> or <c>Subscribe</c> whose
+    /// notification throws is rolled back, so it leaves no lock or subscription behind.
     /// </summary>
     /// <typeparam name="TLockTags">The enum type used for lock tags</typeparam>
     public partial class BaseLockService<TLockTags> : ILockService<TLockTags>
@@ -93,7 +97,15 @@ namespace Migs.MLock
                 PushPending(slot, generation);
             }
 
-            NotifyPending(start);
+            try
+            {
+                NotifyPending(start);
+            }
+            catch (Exception notifyError)
+            {
+                RollBackSubscription(slot, generation, notifyError);
+                throw;
+            }
 
             return new LockSubscription<TLockTags>(this, slot, generation);
         }
@@ -233,7 +245,15 @@ namespace Migs.MLock
                 }
             }
 
-            NotifyPending(start);
+            try
+            {
+                NotifyPending(start);
+            }
+            catch (Exception notifyError)
+            {
+                RollBackLock(slot, generation, notifyError);
+                throw;
+            }
 
             return new LockHandle<TLockTags>(this, slot, generation);
         }
@@ -257,17 +277,76 @@ namespace Migs.MLock
                 return;
             }
 
-            try
+            Exception? first = null;
+            List<Exception>? more = null;
+
+            for (var i = start; i < end; i++)
             {
-                for (var i = start; i < end; i++)
+                try
                 {
                     Reconcile(_pending[i]);
                 }
+                catch (Exception e)
+                {
+                    Collect(e, ref first, ref more);
+                }
             }
-            finally
+
+            _pendingTop = start;
+
+            if (first != null)
             {
-                _pendingTop = start;
+                Rethrow(first, more);
             }
+        }
+
+        private void RollBackLock(int slot, int generation, Exception notifyError)
+        {
+            try
+            {
+                ReleaseLock(slot, generation);
+            }
+            catch (Exception rollbackError)
+            {
+                throw new AggregateException(notifyError, rollbackError);
+            }
+        }
+
+        private void RollBackSubscription(int slot, int generation, Exception notifyError)
+        {
+            try
+            {
+                RemoveSubscriber(slot, generation);
+            }
+            catch (Exception rollbackError)
+            {
+                throw new AggregateException(notifyError, rollbackError);
+            }
+        }
+
+        private static void Collect(Exception e, ref Exception? first, ref List<Exception>? more)
+        {
+            if (first == null)
+            {
+                first = e;
+                return;
+            }
+
+            more ??= new List<Exception>();
+            more.Add(e);
+        }
+
+        private static void Rethrow(Exception first, List<Exception>? more)
+        {
+            if (more == null)
+            {
+                ExceptionDispatchInfo.Capture(first).Throw();
+                return;
+            }
+
+            var all = new List<Exception>(more.Count + 1) { first };
+            all.AddRange(more);
+            throw new AggregateException(all);
         }
 
         private void Reconcile(SlotRef pending)

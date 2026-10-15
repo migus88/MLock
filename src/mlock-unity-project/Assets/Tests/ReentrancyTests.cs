@@ -299,6 +299,109 @@ namespace Migs.MLock.Tests
         }
 
         [Test]
+        public void Lock_WhenHandleLockingThrows_RethrowsAndLeavesNoActiveLock()
+        {
+            // Arrange
+            var thrower = Subscribe(TestLockTags.Tag1);
+            thrower.OnLocking = () => throw new InvalidOperationException("callback failure");
+            var debugInfo = new List<LockDebugInfo>();
+
+            // Act
+            Action act = () => _lockService.Lock(TestLockTags.Tag1);
+
+            // Assert
+            act.Should().Throw<InvalidOperationException>().WithMessage("callback failure");
+            thrower.Calls.Should().Equal(true, false);
+            _lockService.IsLocked(thrower).Should().BeFalse();
+            _lockService.PopulateDebugInfo(debugInfo);
+            debugInfo.Should().BeEmpty();
+            var late = Subscribe(TestLockTags.Tag1);
+            _lockService.IsLocked(late).Should().BeFalse();
+            late.Calls.Should().BeEmpty();
+        }
+
+        [Test]
+        public void Lock_WhenOneLockableThrows_OtherLockablesAreStillNotified()
+        {
+            // Arrange
+            var thrower = Subscribe(TestLockTags.Tag1);
+            var other = Subscribe(TestLockTags.Tag1);
+            thrower.OnLocking = () => throw new InvalidOperationException("callback failure");
+
+            // Act
+            Action act = () => _lockService.Lock(TestLockTags.Tag1);
+
+            // Assert
+            act.Should().Throw<InvalidOperationException>();
+            other.Calls.Should().Equal(true, false);
+            _lockService.IsLocked(other).Should().BeFalse();
+        }
+
+        [Test]
+        public void Lock_WhenTwoLockablesThrow_ThrowsAggregateException()
+        {
+            // Arrange
+            var first = Subscribe(TestLockTags.Tag1);
+            var second = Subscribe(TestLockTags.Tag1);
+            first.OnLocking = () => throw new InvalidOperationException("first");
+            second.OnLocking = () => throw new ArgumentException("second");
+
+            // Act
+            Action act = () => _lockService.Lock(TestLockTags.Tag1);
+
+            // Assert
+            var thrown = act.Should().Throw<AggregateException>().Which;
+            thrown.InnerExceptions.Should().HaveCount(2);
+            thrown.InnerExceptions[0].Should().BeOfType<InvalidOperationException>();
+            thrown.InnerExceptions[1].Should().BeOfType<ArgumentException>();
+            first.Calls.Should().Equal(true, false);
+            second.Calls.Should().Equal(true, false);
+        }
+
+        [Test]
+        public void Dispose_WhenHandleUnlockingThrows_OtherLockablesAreStillUnlocked()
+        {
+            // Arrange
+            var thrower = Subscribe(TestLockTags.Tag1);
+            var other = Subscribe(TestLockTags.Tag1);
+            var handle = _lockService.Lock(TestLockTags.Tag1);
+            thrower.OnUnlocking = () => throw new InvalidOperationException("callback failure");
+
+            // Act
+            Action act = () => handle.Dispose();
+
+            // Assert
+            act.Should().Throw<InvalidOperationException>();
+            handle.IsActive.Should().BeFalse();
+            other.Calls.Should().Equal(true, false);
+            _lockService.IsLocked(other).Should().BeFalse();
+            _lockService.IsLocked(thrower).Should().BeFalse();
+        }
+
+        [Test]
+        public void Subscribe_WhenHandleLockingThrows_RethrowsAndLeavesItUnsubscribed()
+        {
+            // Arrange
+            var handle = _lockService.Lock(TestLockTags.Tag1);
+            var thrower = new RecordingLockable(TestLockTags.Tag1);
+            thrower.OnLocking = () => throw new InvalidOperationException("callback failure");
+
+            // Act
+            Action act = () => _lockService.Subscribe(thrower);
+
+            // Assert
+            act.Should().Throw<InvalidOperationException>();
+            thrower.Calls.Should().Equal(true, false);
+            _lockService.IsLocked(thrower).Should().BeFalse();
+
+            handle.Dispose();
+            thrower.OnLocking = null;
+            var laterHandle = _lockService.Lock(TestLockTags.Tag1);
+            thrower.Calls.Should().Equal(true, false);
+            laterHandle.Dispose();
+        }
+
+        [Test]
         public void LockGate_CallbackDisposesItsOwnGate_OtherGateStaysPaired()
         {
             // Arrange
