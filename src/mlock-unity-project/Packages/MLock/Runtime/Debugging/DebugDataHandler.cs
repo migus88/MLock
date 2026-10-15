@@ -2,7 +2,6 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using Migs.MLock.Interfaces;
 using UnityEngine;
-using Debug = UnityEngine.Debug;
 
 namespace Migs.MLock.Debugging
 {
@@ -39,10 +38,7 @@ namespace Migs.MLock.Debugging
                 return;
             }
             
-            if (_lockServices.Add(service))
-            {
-                Debug.Log($"[MLock Debug] Registered lock service for {service.GetType().Name}");
-            }
+            _lockServices.Add(service);
         }
         
         /// <summary>
@@ -58,13 +54,7 @@ namespace Migs.MLock.Debugging
                 return;
             }
 
-            if (!_lockServices.Contains(service))
-            {
-                return;
-            }
-            
             _lockServices.Remove(service);
-            Debug.Log($"[MLock Debug] Unregistered lock service for {service.GetType().Name}");
         }
         
         /// <summary>
@@ -83,12 +73,6 @@ namespace Migs.MLock.Debugging
         [Conditional("UNITY_EDITOR")]
         public static void UpdateData()
         {
-            if (!Application.isPlaying && (ActiveLocks.Count > 0 || LockServices.Count > 0))
-            {
-                _activeLocks.Clear();
-                _lockServices.Clear();
-            }
-            
             if (!_isEnabled || Time.realtimeSinceStartup - _lastUpdateTime < 1f)
             {
                 return;
@@ -107,7 +91,7 @@ namespace Migs.MLock.Debugging
         [Conditional("UNITY_EDITOR")]
         public static void UnlockById(int lockId)
         {
-            foreach (var service in _lockServices)
+            foreach (var service in new List<IDebuggableLockService>(_lockServices))
             {
                 service.UnlockById(lockId);
             }
@@ -116,10 +100,27 @@ namespace Migs.MLock.Debugging
         [Conditional("UNITY_EDITOR")]
         public static void UnlockAll()
         {
-            foreach (var service in _lockServices)
+            foreach (var service in new List<IDebuggableLockService>(_lockServices))
             {
                 service.UnlockAll();
             }
+        }
+
+        /// <summary>
+        /// Clears the registered services and the cached lock data.
+        /// Called when Play mode starts and when it exits, so services from earlier sessions are never listed.
+        /// </summary>
+        internal static void Reset()
+        {
+            _lockServices.Clear();
+            _activeLocks.Clear();
+            _lastUpdateTime = double.NegativeInfinity;
+        }
+
+        [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
+        private static void ResetOnPlayModeStart()
+        {
+            Reset();
         }
     }
     
