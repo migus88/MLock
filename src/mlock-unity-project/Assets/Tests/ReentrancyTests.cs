@@ -235,6 +235,51 @@ namespace Migs.MLock.Tests
         }
 
         [Test]
+        public void UnlockAll_CallbackCallsUnlockAll_ReleasesEveryLockOnce()
+        {
+            // Arrange
+            var tag1 = Subscribe(TestLockTags.Tag1);
+            var tag2 = Subscribe(TestLockTags.Tag2);
+            var tag3 = Subscribe(TestLockTags.Tag3);
+            var tag1Handle = _lockService.Lock(TestLockTags.Tag1);
+            var tag2Handle = _lockService.Lock(TestLockTags.Tag2);
+            var tag3Handle = _lockService.Lock(TestLockTags.Tag3);
+            tag1.OnUnlocking = () => _lockService.UnlockAll();
+
+            // Act
+            _lockService.UnlockAll();
+
+            // Assert
+            tag1Handle.IsActive.Should().BeFalse();
+            tag2Handle.IsActive.Should().BeFalse();
+            tag3Handle.IsActive.Should().BeFalse();
+            tag1.Calls.Should().Equal(true, false);
+            tag2.Calls.Should().Equal(true, false);
+            tag3.Calls.Should().Equal(true, false);
+        }
+
+        [Test]
+        public void UnlockAll_WhenOneReleaseThrows_ReleasesTheRestAndRethrows()
+        {
+            // Arrange
+            var thrower = Subscribe(TestLockTags.Tag1);
+            var other = Subscribe(TestLockTags.Tag2);
+            var throwerHandle = _lockService.Lock(TestLockTags.Tag1);
+            var otherHandle = _lockService.Lock(TestLockTags.Tag2);
+            thrower.OnUnlocking = () => throw new InvalidOperationException("callback failure");
+
+            // Act
+            Action act = () => _lockService.UnlockAll();
+
+            // Assert
+            act.Should().Throw<InvalidOperationException>();
+            throwerHandle.IsActive.Should().BeFalse();
+            otherHandle.IsActive.Should().BeFalse();
+            other.Calls.Should().Equal(true, false);
+            _lockService.IsLocked(other).Should().BeFalse();
+        }
+
+        [Test]
         public void Subscribe_CallbackSubscribesAnother_LocksBothOnce()
         {
             // Arrange
