@@ -53,4 +53,5 @@ MLockDebugData.UnregisterLockService(lockService);
 ## Notes
 
 - Debug features only work in Editor mode and have no impact on builds
+- Registered services are cleared when Play mode starts and when it exits, so services from earlier sessions never show up
 - The debug window uses reflection to access internal data from the lock service, so it may need to be updated if the internal structure changes 

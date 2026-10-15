@@ -100,7 +100,7 @@ namespace Migs.MLock.Debugging
         [Conditional("UNITY_EDITOR")]
         public static void UnlockAll<TLockTags>(this IEnumerable<ILock<TLockTags>> activeLocks) where TLockTags : Enum
         {
-            foreach (var @lock in activeLocks)
+            foreach (var @lock in activeLocks.ToList())
             {
                 @lock.Dispose();
             }
