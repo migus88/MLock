@@ -1,3 +1,4 @@
+#nullable enable
 using System;
 using System.Collections.Generic;
 using Migs.MLock.Debugging;
@@ -126,7 +127,7 @@ namespace Migs.MLock
         /// <inheritdoc />
         public LockHandle<TLockTags> LockAll()
         {
-            return Acquire(LockMode.All, 0, default);
+            return Acquire(LockMode.All, 0, default!);
         }
 
         /// <inheritdoc />

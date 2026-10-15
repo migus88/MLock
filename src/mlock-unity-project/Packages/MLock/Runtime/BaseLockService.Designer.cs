@@ -1,3 +1,4 @@
+#nullable enable
 // The file uses `.Designer` postfix for nice file nesting in Rider
 
 using System.Collections.Generic;

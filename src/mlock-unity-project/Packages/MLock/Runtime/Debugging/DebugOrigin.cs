@@ -1,3 +1,4 @@
+#nullable enable
 namespace Migs.MLock.Debugging
 {
     /// <summary>
@@ -5,8 +6,8 @@ namespace Migs.MLock.Debugging
     /// </summary>
     public class DebugOrigin
     {
-        public string Display { get; set; }
-        public string File { get; set; }
+        public string Display { get; set; } = string.Empty;
+        public string? File { get; set; }
         public int? Line { get; set; }
     }
 }

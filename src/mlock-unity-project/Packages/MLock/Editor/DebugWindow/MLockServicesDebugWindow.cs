@@ -113,7 +113,7 @@ namespace Migs.MLock.Editor.DebugWindow
             var services = DebugDataHandler.LockServices;
             if (services.Count == 0)
             {
-                EditorGUILayout.HelpBox("No lock services registered. Lock services must be registered with MLockDebugData.RegisterLockService().", MessageType.Info);
+                EditorGUILayout.HelpBox("No lock services registered. Register lock services with WithDebug().", MessageType.Info);
                 return;
             }
             

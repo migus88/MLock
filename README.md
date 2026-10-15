@@ -2,22 +2,23 @@
 
 [![Unity Version](https://img.shields.io/badge/Unity-2022.3+-blue.svg)](https://unity.com/releases/editor/whats-new/2022.3.0)
 [![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
-[![Version](https://img.shields.io/badge/Version-1.1.0-blue.svg)](src/mlock-unity-project/Packages/MLock/package.json)
+[![Version](https://img.shields.io/badge/Version-3.0.0-blue.svg)](src/mlock-unity-project/Packages/MLock/package.json)
 
 A flexible and efficient lock system for Unity that manages access to gameplay elements based on configurable tags.
 
 ## Overview
 
-MLock is a powerful lock management system designed specifically for Unity that provides a structured way to control access to game objects and features. It uses a tag-based approach to determine which objects should be locked or unlocked at any given time, making it ideal for managing game state, feature access, UI interactions, and more.
+MLock is a lock management system for Unity that provides a structured way to control access to game objects and features. It uses a tag-based approach to determine which objects should be locked or unlocked at any given time, making it ideal for managing game state, feature access, UI interactions, and more.
 
 ## Features
 
 - **Tag-based Locking**: Lock and unlock objects based on customizable enum tags
-- **Efficient Object Pooling**: Built-in object pooling for optimal performance
-- **Flexible API**: Simple but powerful interface for integration into any project
-- **Inclusion/Exclusion Logic**: Lock specific tags or lock everything except specific tags
-- **Lightweight**: Minimal overhead with a focus on performance
-- **Generic Implementation**: Works with any custom enum type for maximum flexibility
+- **Inclusion/Exclusion Logic**: Lock specific tags, everything except specific tags, or everything
+- **Allocation-free after warm-up**: Pre-sized slot tables and struct handles, so locking, releasing, subscribing and unsubscribing allocate nothing
+- **Safe handles**: Disposing a handle twice, or disposing a stale copy, never releases another lock
+- **Ready-made helpers**: `LockGate` (a lockable with `IsLocked`) and `LockSwitch` (a lock toggled by a state)
+- **Re-entrant**: Lockables may lock, release, subscribe and unsubscribe from inside their callbacks
+- **Generic Implementation**: Works with any custom enum type
 - **[Debug Windows](#debug-windows)**: Built-in tools to monitor and control locks in real-time
 
 ## Installation
@@ -68,7 +69,7 @@ Add the OpenUPM scoped registry and the package to your `manifest.json` file in 
     }
   ],
   "dependencies": {
-    "com.migsweb.mlock": "1.2.0",
+    "com.migsweb.mlock": "3.0.0",
     // other dependencies...
   }
 }
@@ -81,53 +82,52 @@ Add the OpenUPM scoped registry and the package to your `manifest.json` file in 
 1. Open your Unity project
 2. Go to `Window > Package Manager`
 3. Click the `+` button > `Add package from git URL`
-4. Enter: `https://github.com/migus88/mlock.git?path=/src/mlock-unity-project/Packages/MLock`
+4. Enter: `https://github.com/migus88/MLock.git?path=/src/mlock-unity-project/Packages/MLock`
 5. Click `Add`
 
 To use a specific version, add a tag to the URL:
 ```
-https://github.com/migus88/mlock.git?path=/src/mlock-unity-project/Packages/MLock#1.2.0
+https://github.com/migus88/MLock.git?path=/src/mlock-unity-project/Packages/MLock#3.0.0
 ```
-</details>
-
-<details>
-<summary><b>Manual Installation</b></summary>
-
-1. Go to the [Releases](https://github.com/migus88/mlock/releases) page
-2. Download the latest `.unitypackage` file
-3. Import it into your Unity project via `Assets > Import Package > Custom Package`
 </details>
 
 ## Quick Start
 
-1. Define your lock tags enum (power-of-two values required as well as a zero state):
+1. Define your lock tags enum. Each tag is a separate bit, and `None = 0` stands for "no tags" (locking `None` locks nothing):
 
 ```csharp
 [System.Flags] // Optional
 public enum GameplayFeatures
 {
-    None = 0, // Required
+    None = 0,
     Movement = 1 << 0,
     Inventory = 1 << 1,
     Dialog = 1 << 2,
     Combat = 1 << 3,
-    // Add more as needed
 }
 ```
 
-2. Create a lock service:
+2. Create a lock service (one instance shared by everything it should lock):
 
 ```csharp
 using Migs.MLock;
 using Migs.MLock.Interfaces;
 
-// Create service instance (should be shared across a domain)
-private ILockService<GameplayFeatures> _lockService;
-
-void Awake()
+public class GameManager : MonoBehaviour
 {
-    _lockService = new BaseLockService<GameplayFeatures>();
+    public ILockService<GameplayFeatures> LockService { get; private set; }
+
+    private void Awake()
+    {
+        LockService = new BaseLockService<GameplayFeatures>();
+    }
 }
+```
+
+Optionally, reserve space up front. The capacities are the number of simultaneously active locks and of subscribed lockables; the tables grow past them when needed, which is the only time MLock allocates:
+
+```csharp
+var lockService = new BaseLockService<GameplayFeatures>(lockCapacity: 16, lockableCapacity: 128);
 ```
 
 3. Make objects lockable with a `LockGate`:
@@ -140,13 +140,13 @@ public class PlayerController : MonoBehaviour
 {
     private LockGate<GameplayFeatures> _gate;
 
-    public void Start()
+    private void Start()
     {
         // Don't actually do that - use a proper DI framework
         _gate = new LockGate<GameplayFeatures>(GameManager.Instance.LockService, GameplayFeatures.Movement, OnLockChanged);
     }
 
-    public void OnDestroy()
+    private void OnDestroy()
     {
         _gate.Dispose();
     }
@@ -156,7 +156,7 @@ public class PlayerController : MonoBehaviour
         // Optional: react to locking and unlocking
     }
 
-    void Update()
+    private void Update()
     {
         if (!_gate.IsLocked)
         {
@@ -180,7 +180,7 @@ LockHandle<GameplayFeatures> lockAllButDialog = _lockService.LockAllExcept(Gamep
 // Lock everything
 LockHandle<GameplayFeatures> lockAll = _lockService.LockAll();
 
-// Unlock by disposing the lock
+// Unlock by disposing the handle
 movementLock.Dispose();
 ```
 
@@ -269,10 +269,11 @@ public class PlayerController : MonoBehaviour, ILockable<GameplayFeatures>
 ### Contracts
 
 - A lockable's `LockTags` are read once, at `Subscribe`, and must not change while it is subscribed: unsubscribe and subscribe again to change them.
-- `Unsubscribe` calls `HandleUnlocking` once if the lockable is locked, and nothing otherwise.
+- `Unsubscribe` calls `HandleUnlocking` once if the lockable was told it is locked, and nothing otherwise.
 - `Lock(None)` locks nothing, `LockAllExcept(None)` and `LockAll()` lock everything.
-
-Upgrading from 2.x: see the [CHANGELOG](src/mlock-unity-project/Packages/MLock/CHANGELOG.md).
+- `Subscribe`, `Unsubscribe`, the `Lock` methods and disposing a handle or a subscription may be called from inside `HandleLocking` and `HandleUnlocking`.
+- Each lockable receives alternating `HandleLocking`/`HandleUnlocking` calls, and the last call matches its final state. A lockable unsubscribed before its pending notification is delivered receives no call.
+- `IsLocked` returns the current state even while notifications are still pending.
 
 ### Check Lock Status
 
@@ -301,12 +302,16 @@ MLock comes with built-in debug windows that provide real-time monitoring and co
 For the debug windows to work, you need to register your lock services:
 
 ```csharp
-// Using extension method (recommended)
-var lockService = new BaseLockService<MyLockTags>().WithDebug();
+using Migs.MLock.Debugging;
+
+// Using the extension method (recommended)
+var lockService = new BaseLockService<GameplayFeatures>().WithDebug();
 
 // Unregister when no longer needed
 lockService.WithoutDebug();
 ```
+
+`DebugDataHandler.RegisterLockService(service)` and `DebugDataHandler.UnregisterLockService(service)` do the same by hand. Lock origins (the call stack that created a lock) are captured only while a debug window is open.
 
 ### Debug Window Features
 
@@ -323,21 +328,29 @@ lockService.WithoutDebug();
 - **QA**: Verify lock system behavior and relationships between game objects
 - **Performance Monitoring**: See how many locks are active at any given time
 
-Note: Debug windows only work in the Unity Editor and have no impact on your game builds.
+Note: Debug windows only work in the Unity Editor; in player builds registration does nothing.
 
 ## Architecture
 
 The MLock system is built around these core components:
 
-- **ILockService**: Manages lockable objects and locks
-- **LockHandle**: A handle to an active lock; disposing it releases the lock
+- **ILockService** / **BaseLockService**: Manages lockables and locks
+- **LockHandle**: A struct handle to an active lock; disposing it releases the lock
 - **ILockable**: Interface for objects that can be locked
-- **Slot tables**: Pre-sized storage, so locking and subscribing allocate nothing after warm-up
+- **LockSubscription**: A struct handle to a subscribed lockable; disposing it unsubscribes the lockable
+- **LockGate**: A ready-made lockable that exposes `IsLocked` and an optional change callback
+- **LockSwitch**: A lock that follows a boolean state
+- **Slot tables**: Pre-sized, generation-checked storage, so locking and subscribing allocate nothing after warm-up
+
+## Upgrading from 2.x
+
+See [Upgrading from 2.x](src/mlock-unity-project/Packages/MLock/CHANGELOG.md#upgrading-from-2x) in the CHANGELOG.
 
 ## Best Practices
 
 - Use power-of-two values for enum tags to support bitwise operations
-- Dispose locks when they're no longer needed
+- Dispose lock handles, switches, gates and subscriptions when they're no longer needed
+- Store handles and subscriptions in fields of their own struct type, not as `IDisposable` (that boxes them)
 - Consider using a dependency injection system to provide lock services
 - Group related features under single tags for easier management
 

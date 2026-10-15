@@ -1,3 +1,4 @@
+#nullable enable
 namespace Migs.MLock.Storage
 {
     /// <summary>

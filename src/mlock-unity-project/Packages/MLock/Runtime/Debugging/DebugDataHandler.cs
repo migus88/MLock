@@ -1,3 +1,4 @@
+#nullable enable
 using System.Collections.Generic;
 using System.Diagnostics;
 using Migs.MLock.Interfaces;
@@ -32,7 +33,7 @@ namespace Migs.MLock.Debugging
         /// </summary>
         /// <param name="service">The lock service to register</param>
         [Conditional("UNITY_EDITOR")]
-        public static void RegisterLockService(IDebuggableLockService service)
+        public static void RegisterLockService(IDebuggableLockService? service)
         {
             if (service == null)
             {
@@ -48,7 +49,7 @@ namespace Migs.MLock.Debugging
         /// <param name="service">The lock service to unregister</param>
         /// <typeparam name="TLockTags">The enum type used for lock tags</typeparam>
         [Conditional("UNITY_EDITOR")]
-        public static void UnregisterLockService(IDebuggableLockService service)
+        public static void UnregisterLockService(IDebuggableLockService? service)
         {
             if (service == null)
             {
@@ -137,26 +138,26 @@ namespace Migs.MLock.Debugging
         /// <summary>
         /// String representation of the lock type
         /// </summary>
-        public string LockType { get; set; }
+        public string LockType { get; set; } = string.Empty;
         /// <summary>
         /// How the lock selects lockables: "Include", "Exclude" or "All"
         /// </summary>
-        public string Mode { get; set; }
+        public string Mode { get; set; } = string.Empty;
         /// <summary>
         /// String representation of all include tags
         /// </summary>
-        public string IncludeTags { get; set; }
+        public string? IncludeTags { get; set; }
         /// <summary>
         /// String representation of all exclude tags
         /// </summary>
-        public string ExcludeTags { get; set; }
+        public string? ExcludeTags { get; set; }
         /// <summary>
         /// Full origin frames (filtered stack trace). First frame corresponds to Origin/OriginFile/OriginLine.
         /// </summary>
-        public List<DebugOrigin> OriginFrames { get; set; }
+        public List<DebugOrigin>? OriginFrames { get; set; }
         /// <summary>
         /// String representation of all lockables affected by this lock
         /// </summary>
-        public List<string> AffectedLockables { get; set; }
+        public List<string> AffectedLockables { get; set; } = new();
     }
 }

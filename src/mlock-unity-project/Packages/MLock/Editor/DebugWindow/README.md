@@ -10,7 +10,7 @@ The MLock Debug Window provides real-time debugging capabilities for the MLock s
 
 ### Opening the Window
 
-1. In Unity, go to `Window > MLock > Locks Debug` to open the debug window.
+1. In Unity, go to `Window > MLock > Locks Debug` to open the locks window, or `Window > MLock > Services Debug` to list the registered services.
 
 ### Registering Lock Services
 
@@ -19,11 +19,10 @@ For the debug window to work, you need to register your lock services with the d
 #### 1. Using the extension method (recommended):
 
 ```csharp
+using Migs.MLock.Debugging;
+
 // Create and register your lock service in one step
 var lockService = new BaseLockService<MyLockTags>().WithDebug();
-
-// You can also open the debug window directly
-var lockService = new BaseLockService<MyLockTags>().WithDebug().OpenDebugWindow();
 
 // Unregister when no longer needed
 lockService.WithoutDebug();
@@ -32,14 +31,16 @@ lockService.WithoutDebug();
 #### 2. Manual registration:
 
 ```csharp
+using Migs.MLock.Debugging;
+
 // Create your lock service
 var lockService = new BaseLockService<MyLockTags>();
 
 // Register with debug system
-MLockDebugData.RegisterLockService(lockService);
+DebugDataHandler.RegisterLockService(lockService);
 
 // Unregister when no longer needed
-MLockDebugData.UnregisterLockService(lockService);
+DebugDataHandler.UnregisterLockService(lockService);
 ```
 
 ### Window Features
@@ -54,4 +55,4 @@ MLockDebugData.UnregisterLockService(lockService);
 
 - Debug features only work in Editor mode and have no impact on builds
 - Registered services are cleared when Play mode starts and when it exits, so services from earlier sessions never show up
-- The debug window uses reflection to access internal data from the lock service, so it may need to be updated if the internal structure changes 
+- Lock origins (the call stack that created a lock) are captured only while a debug window is open 
