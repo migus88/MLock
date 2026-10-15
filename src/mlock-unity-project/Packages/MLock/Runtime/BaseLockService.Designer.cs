@@ -1,6 +1,7 @@
 #nullable enable
 // The file uses `.Designer` postfix for nice file nesting in Rider
 
+using System;
 using System.Collections.Generic;
 using Migs.MLock.Debugging;
 using Migs.MLock.Interfaces;
@@ -10,6 +11,9 @@ namespace Migs.MLock
 {
     public partial class BaseLockService<TLockTags> : IDebuggableLockService
     {
+        private SlotRef[]? _unlockAllBuffer;
+        private bool _isUnlockingAll;
+
         public void PopulateDebugInfo(List<LockDebugInfo> debugInfo)
         {
             for (var i = 0; i < _locks.Count; i++)
@@ -56,28 +60,62 @@ namespace Migs.MLock
 
         public void UnlockAll()
         {
-            var start = _pendingTop;
+            var count = _locks.Count;
 
-            for (var i = 0; i < _locks.Count; i++)
+            if (count == 0)
             {
-                var slot = _locks.SlotAt(i);
-                PushPending(slot, _locks.GenerationOf(slot));
+                return;
             }
 
-            var end = _pendingTop;
+            var isNested = _isUnlockingAll;
+            var snapshot = isNested ? new SlotRef[count] : RentUnlockAllBuffer(count);
+
+            for (var i = 0; i < count; i++)
+            {
+                var slot = _locks.SlotAt(i);
+                snapshot[i] = new SlotRef(slot, _locks.GenerationOf(slot));
+            }
+
+            Exception? first = null;
+            List<Exception>? more = null;
+            _isUnlockingAll = true;
 
             try
             {
-                for (var i = start; i < end; i++)
+                for (var i = 0; i < count; i++)
                 {
-                    var pending = _pending[i];
-                    ReleaseLock(pending.Slot, pending.Generation);
+                    try
+                    {
+                        ReleaseLock(snapshot[i].Slot, snapshot[i].Generation);
+                    }
+                    catch (Exception e)
+                    {
+                        Collect(e, ref first, ref more);
+                    }
                 }
             }
             finally
             {
-                _pendingTop = start;
+                _isUnlockingAll = isNested;
             }
+
+            if (first != null)
+            {
+                Rethrow(first, more);
+            }
+        }
+
+        private SlotRef[] RentUnlockAllBuffer(int count)
+        {
+            var buffer = _unlockAllBuffer;
+
+            if (buffer == null || buffer.Length < count)
+            {
+                buffer = new SlotRef[Math.Max(count, buffer == null ? 8 : buffer.Length * 2)];
+                _unlockAllBuffer = buffer;
+            }
+
+            return buffer;
         }
     }
 }

@@ -18,6 +18,7 @@ MLock is a lock management system for Unity that provides a structured way to co
 - **Safe handles**: Disposing a handle twice, or disposing a stale copy, never releases another lock
 - **Ready-made helpers**: `LockGate` (a lockable with `IsLocked`) and `LockSwitch` (a lock toggled by a state)
 - **Re-entrant**: Lockables may lock, release, subscribe and unsubscribe from inside their callbacks
+- **Exception-safe**: An exception thrown by a callback is rethrown only after every lockable is notified, and a failed `Lock` or `Subscribe` leaves no lock or subscription behind
 - **Generic Implementation**: Works with any custom enum type
 - **[Debug Windows](#debug-windows)**: Built-in tools to monitor and control locks in real-time
 
