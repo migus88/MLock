@@ -55,15 +55,27 @@ namespace Migs.MLock
 
         public void UnlockAll()
         {
-            for (var i = _locks.Count - 1; i >= 0; i--)
-            {
-                if (i >= _locks.Count)
-                {
-                    continue;
-                }
+            var start = _pendingTop;
 
+            for (var i = 0; i < _locks.Count; i++)
+            {
                 var slot = _locks.SlotAt(i);
-                ReleaseLock(slot, _locks.GenerationOf(slot));
+                PushPending(slot, _locks.GenerationOf(slot));
+            }
+
+            var end = _pendingTop;
+
+            try
+            {
+                for (var i = start; i < end; i++)
+                {
+                    var pending = _pending[i];
+                    ReleaseLock(pending.Slot, pending.Generation);
+                }
+            }
+            finally
+            {
+                _pendingTop = start;
             }
         }
     }

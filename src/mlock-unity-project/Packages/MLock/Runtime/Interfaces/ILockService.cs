@@ -12,6 +12,16 @@ namespace Migs.MLock.Interfaces
     /// <summary>
     /// Interface for a service that manages locks and lockable objects
     /// </summary>
+    /// <remarks>
+    /// <see cref="Subscribe"/>, <see cref="Unsubscribe"/>, the <c>Lock</c> methods and disposing a handle or a subscription
+    /// may be called from inside <see cref="ILockable{TLockTags}.HandleLocking"/> and <see cref="ILockable{TLockTags}.HandleUnlocking"/>.
+    /// Each subscription receives alternating <c>HandleLocking</c>/<c>HandleUnlocking</c> calls, and the last call matches the final state.
+    /// A lockable subscribed from inside a callback is notified by its own <see cref="Subscribe"/>;
+    /// a lockable unsubscribed before its pending notification is delivered receives no call.
+    /// <see cref="IsLocked"/> returns the current state even while notifications are still pending.
+    /// If a callback throws, the exception propagates and the service stays usable; lockables whose notification
+    /// was not delivered yet are notified at their next change.
+    /// </remarks>
     /// <typeparam name="TLockTags">The enum type used for lock tags</typeparam>
     public interface ILockService<TLockTags> : ILockService where TLockTags : Enum
     {
@@ -29,7 +39,7 @@ namespace Migs.MLock.Interfaces
 
         /// <summary>
         /// Removes a lockable object from this service.
-        /// A locked lockable receives <see cref="ILockable{TLockTags}.HandleUnlocking"/> once; an unlocked one receives nothing.
+        /// A lockable that was notified as locked receives <see cref="ILockable{TLockTags}.HandleUnlocking"/> once; any other receives nothing.
         /// Unsubscribing a lockable that is not subscribed does nothing.
         /// </summary>
         /// <param name="lockable">The lockable object to remove</param>

@@ -10,6 +10,9 @@ namespace Migs.MLock
     /// A base implementation of <see cref="ILockService{TLockTags}"/>.
     /// Locks and subscribers live in pre-sized slot tables, so locking, unlocking, subscribing
     /// and unsubscribing allocate nothing once the tables are large enough.
+    /// Every operation first updates the lock counts and only then notifies lockables, comparing each one's
+    /// count with the state it was last told about, so the service stays consistent when a callback
+    /// subscribes, unsubscribes, locks or releases.
     /// </summary>
     /// <typeparam name="TLockTags">The enum type used for lock tags</typeparam>
     public partial class BaseLockService<TLockTags> : ILockService<TLockTags>
@@ -18,6 +21,9 @@ namespace Migs.MLock
         private readonly SlotTable<LockEntry<TLockTags>> _locks;
         private readonly SlotTable<SubscriberEntry<TLockTags>> _subscribers;
         private readonly Dictionary<ILockable<TLockTags>, (int Slot, int Generation)> _subscriberSlots;
+
+        private SlotRef[] _pending;
+        private int _pendingTop;
 
         /// <summary>
         /// Creates a new lock service
@@ -40,6 +46,7 @@ namespace Migs.MLock
             _locks = new SlotTable<LockEntry<TLockTags>>(lockCapacity);
             _subscribers = new SlotTable<SubscriberEntry<TLockTags>>(lockableCapacity);
             _subscriberSlots = new Dictionary<ILockable<TLockTags>, (int Slot, int Generation)>(lockableCapacity);
+            _pending = new SlotRef[Math.Max(lockableCapacity, 1)];
         }
 
         /// <inheritdoc />
@@ -68,6 +75,7 @@ namespace Migs.MLock
                 }
             }
 
+            var start = _pendingTop;
             var slot = _subscribers.Add(new SubscriberEntry<TLockTags>
             {
                 Lockable = lockable,
@@ -79,8 +87,10 @@ namespace Migs.MLock
 
             if (lockCount > 0)
             {
-                lockable.HandleLocking();
+                PushPending(slot, generation);
             }
+
+            NotifyPending(start);
 
             return new LockSubscription<TLockTags>(this, slot, generation);
         }
@@ -147,6 +157,8 @@ namespace Migs.MLock
 
         internal void ReleaseLock(int slot, int generation)
         {
+            var start = _pendingTop;
+
             if (!_locks.TryRemove(slot, generation, out var entry))
             {
                 return;
@@ -154,7 +166,8 @@ namespace Migs.MLock
 
             for (var i = 0; i < _subscribers.Count; i++)
             {
-                ref var subscriber = ref _subscribers.Get(_subscribers.SlotAt(i));
+                var subscriberSlot = _subscribers.SlotAt(i);
+                ref var subscriber = ref _subscribers.Get(subscriberSlot);
 
                 if (subscriber.LockCount == 0 || !TagMask.Matches(entry.Mode, entry.Mask, subscriber.Tags))
                 {
@@ -163,11 +176,13 @@ namespace Migs.MLock
 
                 subscriber.LockCount--;
 
-                if (subscriber.LockCount == 0)
+                if ((subscriber.LockCount > 0) != subscriber.IsNotifiedLocked)
                 {
-                    subscriber.Lockable.HandleUnlocking();
+                    PushPending(subscriberSlot, _subscribers.GenerationOf(subscriberSlot));
                 }
             }
+
+            NotifyPending(start);
         }
 
         private void RemoveSubscriber(int slot, int generation)
@@ -179,7 +194,7 @@ namespace Migs.MLock
 
             _subscriberSlots.Remove(removed.Lockable);
 
-            if (removed.LockCount > 0)
+            if (removed.IsNotifiedLocked)
             {
                 removed.Lockable.HandleUnlocking();
             }
@@ -187,6 +202,7 @@ namespace Migs.MLock
 
         private LockHandle<TLockTags> Acquire(LockMode mode, ulong mask, TLockTags tags)
         {
+            var start = _pendingTop;
             var slot = _locks.Add(new LockEntry<TLockTags>
             {
                 Mode = mode,
@@ -198,7 +214,8 @@ namespace Migs.MLock
 
             for (var i = 0; i < _subscribers.Count; i++)
             {
-                ref var subscriber = ref _subscribers.Get(_subscribers.SlotAt(i));
+                var subscriberSlot = _subscribers.SlotAt(i);
+                ref var subscriber = ref _subscribers.Get(subscriberSlot);
 
                 if (!TagMask.Matches(mode, mask, subscriber.Tags))
                 {
@@ -207,13 +224,75 @@ namespace Migs.MLock
 
                 subscriber.LockCount++;
 
-                if (subscriber.LockCount == 1)
+                if (!subscriber.IsNotifiedLocked)
                 {
-                    subscriber.Lockable.HandleLocking();
+                    PushPending(subscriberSlot, _subscribers.GenerationOf(subscriberSlot));
                 }
             }
 
+            NotifyPending(start);
+
             return new LockHandle<TLockTags>(this, slot, generation);
+        }
+
+        private void PushPending(int slot, int generation)
+        {
+            if (_pendingTop == _pending.Length)
+            {
+                Array.Resize(ref _pending, _pending.Length * 2);
+            }
+
+            _pending[_pendingTop++] = new SlotRef(slot, generation);
+        }
+
+        private void NotifyPending(int start)
+        {
+            var end = _pendingTop;
+
+            if (start == end)
+            {
+                return;
+            }
+
+            try
+            {
+                for (var i = start; i < end; i++)
+                {
+                    Reconcile(_pending[i]);
+                }
+            }
+            finally
+            {
+                _pendingTop = start;
+            }
+        }
+
+        private void Reconcile(SlotRef pending)
+        {
+            if (!_subscribers.IsAlive(pending.Slot, pending.Generation))
+            {
+                return;
+            }
+
+            ref var subscriber = ref _subscribers.Get(pending.Slot);
+            var isLocked = subscriber.LockCount > 0;
+
+            if (isLocked == subscriber.IsNotifiedLocked)
+            {
+                return;
+            }
+
+            subscriber.IsNotifiedLocked = isLocked;
+            var lockable = subscriber.Lockable;
+
+            if (isLocked)
+            {
+                lockable.HandleLocking();
+            }
+            else
+            {
+                lockable.HandleUnlocking();
+            }
         }
     }
 }
