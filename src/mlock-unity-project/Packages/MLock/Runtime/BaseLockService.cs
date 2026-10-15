@@ -2,30 +2,44 @@ using System;
 using System.Collections.Generic;
 using Migs.MLock.Debugging;
 using Migs.MLock.Interfaces;
-using Migs.MLock.Pools;
+using Migs.MLock.Storage;
 
 namespace Migs.MLock
 {
     /// <summary>
-    /// A base implementation of <see cref="ILockService{TLockTags}"/>
+    /// A base implementation of <see cref="ILockService{TLockTags}"/>.
+    /// Locks and subscribers live in pre-sized slot tables, so locking, unlocking, subscribing
+    /// and unsubscribing allocate nothing once the tables are large enough.
     /// </summary>
     /// <typeparam name="TLockTags">The enum type used for lock tags</typeparam>
     public partial class BaseLockService<TLockTags> : ILockService<TLockTags>
         where TLockTags : Enum
     {
-        private readonly Dictionary<ILockable<TLockTags>, ILockableData<TLockTags>> _lockableToDataMap = new();
-        private readonly HashSet<ILock<TLockTags>> _activeLocks = new();
-        private readonly ILockPool<TLockTags> _lockPool;
-        private readonly ILockableDataPool<TLockTags> _dataPool;
-        
+        private readonly SlotTable<LockEntry<TLockTags>> _locks;
+        private readonly SlotTable<SubscriberEntry<TLockTags>> _subscribers;
+        private readonly Dictionary<ILockable<TLockTags>, int> _subscriberSlots;
+
         /// <summary>
         /// Creates a new lock service
         /// </summary>
-        /// <param name="poolsInitialCapacity">Optional: initial capacity for internal object pools</param>
-        public BaseLockService(int poolsInitialCapacity = 10)
+        /// <param name="lockCapacity">Optional: number of simultaneously active locks to reserve space for</param>
+        /// <param name="lockableCapacity">Optional: number of subscribed lockables to reserve space for</param>
+        /// <exception cref="ArgumentOutOfRangeException">Thrown if a capacity is negative</exception>
+        public BaseLockService(int lockCapacity = 8, int lockableCapacity = 32)
         {
-            _lockPool = new LockPool<TLockTags>(poolsInitialCapacity);
-            _dataPool = new LockableDataPool<TLockTags>(poolsInitialCapacity);
+            if (lockCapacity < 0)
+            {
+                throw new ArgumentOutOfRangeException(nameof(lockCapacity), "Capacity cannot be negative");
+            }
+
+            if (lockableCapacity < 0)
+            {
+                throw new ArgumentOutOfRangeException(nameof(lockableCapacity), "Capacity cannot be negative");
+            }
+
+            _locks = new SlotTable<LockEntry<TLockTags>>(lockCapacity);
+            _subscribers = new SlotTable<SubscriberEntry<TLockTags>>(lockableCapacity);
+            _subscriberSlots = new Dictionary<ILockable<TLockTags>, int>(lockableCapacity);
         }
 
         /// <inheritdoc />
@@ -36,29 +50,36 @@ namespace Migs.MLock
                 throw new ArgumentNullException(nameof(lockable), "Lockable cannot be null");
             }
 
-            if (_lockableToDataMap.ContainsKey(lockable))
+            if (_subscriberSlots.ContainsKey(lockable))
             {
                 throw new ArgumentException($"Lockable {lockable} is already subscribed");
             }
 
-            var data = _dataPool.Borrow(lockable);
-            var isLocked = false;
+            var tags = TagMask<TLockTags>.From(lockable.LockTags);
+            var lockCount = 0;
 
-            // Check directly against active locks instead of iterating all lockables
-            foreach (var @lock in _activeLocks)
+            for (var i = 0; i < _locks.Count; i++)
             {
-                if (ShouldLock(@lock, data))
+                ref var entry = ref _locks.Get(_locks.SlotAt(i));
+
+                if (TagMask.Matches(entry.Mode, entry.Mask, tags))
                 {
-                    data.Locks.Add(@lock);
-                    isLocked = true;
+                    lockCount++;
                 }
             }
-            
-            _lockableToDataMap.Add(lockable, data);
 
-            if (isLocked)
+            var slot = _subscribers.Add(new SubscriberEntry<TLockTags>
             {
-                data.Lockable.HandleLocking();
+                Lockable = lockable,
+                Tags = tags,
+                LockCount = lockCount
+            }, out _);
+
+            _subscriberSlots.Add(lockable, slot);
+
+            if (lockCount > 0)
+            {
+                lockable.HandleLocking();
             }
         }
 
@@ -70,107 +91,36 @@ namespace Migs.MLock
                 throw new ArgumentNullException(nameof(lockable), "Lockable cannot be null");
             }
 
-            if (!_lockableToDataMap.TryGetValue(lockable, out var data))
+            if (!_subscriberSlots.TryGetValue(lockable, out var slot))
             {
                 return;
             }
 
-            lockable.HandleUnlocking();
-            _dataPool.Return(data);
-            
-            _lockableToDataMap.Remove(lockable);
-        }
+            _subscriberSlots.Remove(lockable);
+            _subscribers.TryRemove(slot, _subscribers.GenerationOf(slot), out var removed);
 
-        /// <inheritdoc />
-        public ILock<TLockTags> Lock(TLockTags includeTags)
-        {
-            return CreateLock(includeTags, default);
-        }
-
-        /// <inheritdoc />
-        public ILock<TLockTags> LockAllExcept(TLockTags excludeTags)
-        {
-            return CreateLock(default, excludeTags);
-        }
-
-        /// <inheritdoc />
-        public ILock<TLockTags> LockAll()
-        {
-            return CreateLock(default, default);
-        }
-
-        private ILock<TLockTags> CreateLock(TLockTags includeTags = default, TLockTags excludeTags = default)
-        {
-            // Validate that both include and exclude tags are not set
-            if (!includeTags.Equals(default(TLockTags)) && !excludeTags.Equals(default(TLockTags)))
+            if (removed.LockCount > 0)
             {
-                throw new ArgumentException("Cannot specify both include and exclude tags");
-            }
-
-            var @lock = _lockPool.Borrow(this, includeTags, excludeTags);
-            @lock.PopulateLockOrigin();
-            
-            _activeLocks.Add(@lock);
-
-            TryLocking(@lock);
-
-            return @lock;
-        }
-
-        /// <inheritdoc />
-        public void TryLocking(ILock<TLockTags> @lock)
-        {
-            if (@lock == null)
-            {
-                throw new ArgumentNullException(nameof(@lock), "Lock cannot be null");
-            }
-            
-            _activeLocks.Add(@lock);
-
-            foreach (var kvp in _lockableToDataMap)
-            {
-                var data = kvp.Value;
-                
-                if(!ShouldLock(@lock, data))
-                {
-                    continue;
-                }
-                
-                data.Locks.Add(@lock);
-                
-                if(data.Locks.Count == 1)
-                {
-                    data.Lockable.HandleLocking();
-                }
+                lockable.HandleUnlocking();
             }
         }
 
         /// <inheritdoc />
-        public void TryUnlocking(ILock<TLockTags> @lock)
+        public LockHandle<TLockTags> Lock(TLockTags includeTags)
         {
-            if (@lock == null)
-            {
-                throw new ArgumentNullException(nameof(@lock), "Lock cannot be null");
-            }
+            return Acquire(LockMode.Include, TagMask<TLockTags>.From(includeTags), includeTags);
+        }
 
-            _activeLocks.Remove(@lock);
+        /// <inheritdoc />
+        public LockHandle<TLockTags> LockAllExcept(TLockTags excludeTags)
+        {
+            return Acquire(LockMode.Exclude, TagMask<TLockTags>.From(excludeTags), excludeTags);
+        }
 
-            foreach (var kvp in _lockableToDataMap)
-            {
-                var data = kvp.Value;
-
-                if (!data.Locks.Contains(@lock))
-                {
-                    continue;
-                }
-                
-                data.Locks.Remove(@lock);
-                
-                if (data.Locks.Count == 0)
-                {
-                    data.Lockable.HandleUnlocking();
-                }
-            }
+        /// <inheritdoc />
+        public LockHandle<TLockTags> LockAll()
+        {
+            return Acquire(LockMode.All, 0, default);
         }
 
         /// <inheritdoc />
@@ -181,51 +131,68 @@ namespace Migs.MLock
                 throw new ArgumentNullException(nameof(lockable), "Lockable cannot be null");
             }
 
-            return _lockableToDataMap.TryGetValue(lockable, out var data) && data.IsLocked;
+            return _subscriberSlots.TryGetValue(lockable, out var slot) && _subscribers.Get(slot).LockCount > 0;
         }
-        
-        private static bool ShouldLock(ILock<TLockTags> @lock, ILockableData<TLockTags> data)
+
+        internal bool IsLockActive(int slot, int generation)
         {
-            if (data == null)
-            {
-                return false;
-            }
-            
-            if (data.Locks.Contains(@lock))
-            {
-                return false;
-            }
+            return _locks.IsAlive(slot, generation);
+        }
 
-            // Perform direct bitwise operations on the enum values
-            var includeTags = Convert.ToUInt32(@lock.IncludeTags);
-            var excludeTags = Convert.ToUInt32(@lock.ExcludeTags);
-            var lockableTags = Convert.ToUInt32(data.Lockable.LockTags);
-
-            // If both include and exclude are 0 (default), lock everything
-            if (includeTags == 0 && excludeTags == 0)
+        internal void ReleaseLock(int slot, int generation)
+        {
+            if (!_locks.TryRemove(slot, generation, out var entry))
             {
-                return true;
+                return;
             }
 
-            // If both include and exclude have values, that's an invalid configuration
-            if (includeTags != 0 && excludeTags != 0)
+            for (var i = 0; i < _subscribers.Count; i++)
             {
-                return false;
+                ref var subscriber = ref _subscribers.Get(_subscribers.SlotAt(i));
+
+                if (subscriber.LockCount == 0 || !TagMask.Matches(entry.Mode, entry.Mask, subscriber.Tags))
+                {
+                    continue;
+                }
+
+                subscriber.LockCount--;
+
+                if (subscriber.LockCount == 0)
+                {
+                    subscriber.Lockable.HandleUnlocking();
+                }
+            }
+        }
+
+        private LockHandle<TLockTags> Acquire(LockMode mode, ulong mask, TLockTags tags)
+        {
+            var slot = _locks.Add(new LockEntry<TLockTags>
+            {
+                Mode = mode,
+                Mask = mask,
+                Tags = tags,
+                Id = LockIdGenerator.Next(),
+                Origin = DebugDataHandler.IsEnabled ? DebugUtils.CaptureOrigin() : null
+            }, out var generation);
+
+            for (var i = 0; i < _subscribers.Count; i++)
+            {
+                ref var subscriber = ref _subscribers.Get(_subscribers.SlotAt(i));
+
+                if (!TagMask.Matches(mode, mask, subscriber.Tags))
+                {
+                    continue;
+                }
+
+                subscriber.LockCount++;
+
+                if (subscriber.LockCount == 1)
+                {
+                    subscriber.Lockable.HandleLocking();
+                }
             }
 
-            // Check if any lockable tag is included in the include tags
-            if (includeTags != 0)
-            {
-                return (includeTags & lockableTags) != 0;
-            }
-
-            // Check if no lockable tag is in the exclude tags
-            if (excludeTags != 0)
-            {
-                return (excludeTags & lockableTags) == 0;
-            }
-
-            return false;
+            return new LockHandle<TLockTags>(this, slot, generation);
         }
     }
 }

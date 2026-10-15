@@ -1,5 +1,4 @@
 using System;
-using System.Reflection;
 using FluentAssertions;
 using Migs.MLock.Interfaces;
 using Migs.MLock.Tests.Integration;
@@ -19,19 +18,6 @@ namespace Migs.MLock.Tests
             _lockService = new BaseLockService<TestLockTags>();
             _mockLockable = Substitute.For<ILockable<TestLockTags>>();
             _mockLockable.LockTags.Returns(TestLockTags.Tag1);
-        }
-        
-        [Test]
-        public void Constructor_InitializesPoolsWithCorrectCapacity()
-        {
-            // Arrange
-            const int initialCapacity = 20;
-            
-            // Act
-            var service = new BaseLockService<TestLockTags>(initialCapacity);
-            
-            // Assert - We're testing the constructor worked correctly, but since pools are private we don't assert directly
-            service.Should().NotBeNull();
         }
         
         [Test]
@@ -116,9 +102,7 @@ namespace Migs.MLock.Tests
             var lockObj = _lockService.Lock(TestLockTags.Tag1);
             
             // Assert
-            lockObj.Should().NotBeNull();
-            lockObj.IncludeTags.Should().Be(TestLockTags.Tag1);
-            lockObj.ExcludeTags.Should().Be(default(TestLockTags));
+            lockObj.IsActive.Should().BeTrue();
             _lockService.IsLocked(_mockLockable).Should().BeTrue();
             
             // Clean up
@@ -135,9 +119,7 @@ namespace Migs.MLock.Tests
             var lockObj = _lockService.LockAllExcept(TestLockTags.Tag2);
             
             // Assert
-            lockObj.Should().NotBeNull();
-            lockObj.IncludeTags.Should().Be(default(TestLockTags));
-            lockObj.ExcludeTags.Should().Be(TestLockTags.Tag2);
+            lockObj.IsActive.Should().BeTrue();
             _lockService.IsLocked(_mockLockable).Should().BeTrue(); // Has Tag1 not Tag2, so should be locked
             
             // Clean up
@@ -154,45 +136,11 @@ namespace Migs.MLock.Tests
             var lockObj = _lockService.LockAll();
             
             // Assert
-            lockObj.Should().NotBeNull();
-            lockObj.IncludeTags.Should().Be(default(TestLockTags));
-            lockObj.ExcludeTags.Should().Be(default(TestLockTags));
+            lockObj.IsActive.Should().BeTrue();
             _lockService.IsLocked(_mockLockable).Should().BeTrue();
             
             // Clean up
             lockObj.Dispose();
-        }
-        
-        [Test]
-        public void CreateLock_WithBothIncludeAndExcludeTags_ThrowsArgumentException()
-        {
-            // Act & Assert
-            // Access the private CreateLock method via reflection
-            var methodInfo = typeof(BaseLockService<TestLockTags>).GetMethod("CreateLock", 
-                BindingFlags.NonPublic | BindingFlags.Instance);
-            
-            Action act = () => methodInfo.Invoke(_lockService, new object[] { TestLockTags.Tag1, TestLockTags.Tag2 });
-            act.Should().Throw<TargetInvocationException>()
-                .WithInnerException<ArgumentException>()
-                .WithMessage("*Cannot specify both include and exclude tags*");
-        }
-        
-        [Test]
-        public void TryLocking_WithNullLock_ThrowsArgumentNullException()
-        {
-            // Act & Assert
-            Action act = () => _lockService.TryLocking(null);
-            act.Should().Throw<ArgumentNullException>()
-                .WithMessage("*Lock cannot be null*");
-        }
-        
-        [Test]
-        public void TryUnlocking_WithNullLock_ThrowsArgumentNullException()
-        {
-            // Act & Assert
-            Action act = () => _lockService.TryUnlocking(null);
-            act.Should().Throw<ArgumentNullException>()
-                .WithMessage("*Lock cannot be null*");
         }
         
         [Test]

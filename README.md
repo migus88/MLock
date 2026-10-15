@@ -179,13 +179,13 @@ public class PlayerController : MonoBehaviour, ILockable<GameplayFeatures>
 
 ```csharp
 // Lock specific features
-ILock<GameplayFeatures> movementLock = _lockService.Lock(GameplayFeatures.Movement);
+LockHandle<GameplayFeatures> movementLock = _lockService.Lock(GameplayFeatures.Movement);
 
 // Lock everything except specific features
-ILock<GameplayFeatures> lockAllButDialog = _lockService.LockAllExcept(GameplayFeatures.Dialog);
+LockHandle<GameplayFeatures> lockAllButDialog = _lockService.LockAllExcept(GameplayFeatures.Dialog);
 
 // Lock everything
-ILock<GameplayFeatures> lockAll = _lockService.LockAll();
+LockHandle<GameplayFeatures> lockAll = _lockService.LockAll();
 
 // Unlock by disposing the lock
 movementLock.Dispose();
@@ -226,6 +226,25 @@ public void SomeComplexMethod()
     // ...
 } // Combat is automatically unlocked when exiting the method
 ```
+
+### Holding a lock
+
+`Lock`, `LockAllExcept` and `LockAll` return a `LockHandle<T>` struct. Keep it in a `LockHandle<T>` field (not an `IDisposable`, which boxes it) and dispose it to release the lock. Disposing twice, disposing a copy or disposing a `default` handle is safe and never releases another lock; `IsActive` tells whether the lock is still held.
+
+```csharp
+private LockHandle<GameplayFeatures> _menuLock;
+
+void OpenMenu() => _menuLock = _lockService.Lock(GameplayFeatures.Movement);
+void CloseMenu() => _menuLock.Dispose();
+```
+
+### Contracts
+
+- A lockable's `LockTags` are read once, at `Subscribe`, and must not change while it is subscribed: unsubscribe and subscribe again to change them.
+- `Unsubscribe` calls `HandleUnlocking` once if the lockable is locked, and nothing otherwise.
+- `Lock(None)` locks nothing, `LockAllExcept(None)` and `LockAll()` lock everything.
+
+Upgrading from 2.x: see the [CHANGELOG](src/mlock-unity-project/Packages/MLock/CHANGELOG.md).
 
 ### Check Lock Status
 
@@ -283,9 +302,9 @@ Note: Debug windows only work in the Unity Editor and have no impact on your gam
 The MLock system is built around these core components:
 
 - **ILockService**: Manages lockable objects and locks
-- **ILock**: Represents a lock that can be applied to lockable objects
+- **LockHandle**: A handle to an active lock; disposing it releases the lock
 - **ILockable**: Interface for objects that can be locked
-- **Object Pools**: Efficient reuse of lock instances for better performance
+- **Slot tables**: Pre-sized storage, so locking and subscribing allocate nothing after warm-up
 
 ## Best Practices
 

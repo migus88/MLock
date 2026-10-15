@@ -361,9 +361,9 @@ namespace Migs.MLock.Editor.DebugWindow
                     case SearchType.Tags:
                         return lockInfo.LockType.ToLower().Contains(_searchText.ToLower());
                     case SearchType.Includes:
-                        return lockInfo.IncludeTags.ToLower().Contains(_searchText.ToLower());
+                        return (lockInfo.IncludeTags ?? string.Empty).ToLower().Contains(_searchText.ToLower());
                     case SearchType.Excludes:
-                        return lockInfo.ExcludeTags.ToLower().Contains(_searchText.ToLower());
+                        return (lockInfo.ExcludeTags ?? string.Empty).ToLower().Contains(_searchText.ToLower());
                     case SearchType.Lockables:
                     default:
                         return lockInfo.AffectedLockables.Any(l => l.ToLower().Contains(_searchText.ToLower()));

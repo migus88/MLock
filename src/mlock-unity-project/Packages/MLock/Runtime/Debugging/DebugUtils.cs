@@ -1,8 +1,6 @@
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
-using System.IO;
-using System.Linq;
 using Migs.MLock.Interfaces;
 using UnityEngine;
 
@@ -59,63 +57,14 @@ namespace Migs.MLock.Debugging
             return service as TCast;
         }
         
-        [Conditional("UNITY_EDITOR")]
-        public static void Populate<TLockTags>(this List<LockDebugInfo> debugInfo, IEnumerable<ILock<TLockTags>> activeLocks, Dictionary<ILockable<TLockTags>, ILockableData<TLockTags>> lockableToDataMap) where TLockTags : Enum
+        /// <summary>
+        /// Captures the call stack outside MLock that created a lock (at most 10 frames), or null when none is found
+        /// </summary>
+        internal static List<DebugOrigin> CaptureOrigin()
         {
-            foreach (var @lock in activeLocks)
-            {
-                var affected = lockableToDataMap
-                    .Where(p => p.Value.Locks.Contains(@lock))
-                    .Select(p => FormatLockable(p.Key))
-                    .ToList();
-
-                List<DebugOrigin> originFrames = null;
-                
-                if (@lock is IDebuggableLock<TLockTags> { DebugOriginFrames: not null } debuggableLock)
-                {
-                    originFrames = new List<DebugOrigin>(debuggableLock.DebugOriginFrames);
-                }
-
-                var lockInfo = new LockDebugInfo
-                {
-                    Id = @lock.Id,
-                    LockType = typeof(TLockTags).Name,
-                    IncludeTags = @lock.IncludeTags?.ToString(),
-                    ExcludeTags = @lock.ExcludeTags?.ToString(),
-                    OriginFrames = originFrames,
-                    AffectedLockables = affected
-                };
-                
-                debugInfo.Add(lockInfo);
-            }
-        }
-        
-        [Conditional("UNITY_EDITOR")]
-        public static void UnlockById<TLockTags>(this IEnumerable<ILock<TLockTags>> activeLocks, int lockId) where TLockTags : Enum
-        {
-            var lockToRemove = activeLocks.FirstOrDefault(l => l.Id == lockId);
-            lockToRemove?.Dispose();
-        }
-
-        [Conditional("UNITY_EDITOR")]
-        public static void UnlockAll<TLockTags>(this IEnumerable<ILock<TLockTags>> activeLocks) where TLockTags : Enum
-        {
-            foreach (var @lock in activeLocks.ToList())
-            {
-                @lock.Dispose();
-            }
-        }
-        
-        [Conditional("UNITY_EDITOR")]
-        public static void PopulateLockOrigin<TLockTags>(this ILock<TLockTags> @lock) where TLockTags : Enum
-        {
-            if (@lock is not IDebuggableLock<TLockTags> debugLock)
-            {
-                return;
-            }
-            
             try
             {
+                var mlockAssembly = typeof(DebugUtils).Assembly;
                 var st = new StackTrace(true);
                 var frames = new List<DebugOrigin>(10);
                 for (var i = 0; i < st.FrameCount; i++)
@@ -124,14 +73,7 @@ namespace Migs.MLock.Debugging
                     var method = frame.GetMethod();
                     var declaring = method?.DeclaringType;
                     
-                    if (declaring == null)
-                    {
-                        continue;
-                    }
-                    
-                    var @namespace = declaring.Namespace ?? string.Empty;
-                    
-                    if (@namespace.StartsWith("Migs.MLock"))
+                    if (declaring == null || declaring.Assembly == mlockAssembly)
                     {
                         continue;
                     }
@@ -156,37 +98,15 @@ namespace Migs.MLock.Debugging
                     }
                 }
 
-                if (frames.Count > 0)
-                {
-                    debugLock.DebugOriginFrames ??= new List<DebugOrigin>();
-                    debugLock.DebugOriginFrames.Clear();
-                    
-                    foreach (var f in frames)
-                    {
-                        debugLock.DebugOriginFrames.Add(f);
-                    }
-
-                    var first = frames[0];
-                    debugLock.DebugOrigin = first.Display;
-                    debugLock.DebugOriginFile = first.File;
-                    debugLock.DebugOriginLine = first.Line;
-                }
-                else
-                {
-                    debugLock.DebugOrigin = "Unknown";
-                    debugLock.DebugOriginFile = null;
-                    debugLock.DebugOriginLine = null;
-                }
+                return frames.Count > 0 ? frames : null;
             }
             catch
             {
-                debugLock.DebugOrigin = "Unknown";
-                debugLock.DebugOriginFile = null;
-                debugLock.DebugOriginLine = null;
+                return null;
             }
         }
 
-        private static string FormatLockable(object lockable)
+        internal static string FormatLockable(object lockable)
         {
             if (lockable == null)
             {

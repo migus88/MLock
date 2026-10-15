@@ -33,8 +33,8 @@ namespace Migs.MLock.Examples.Car_UiElements.Code
 
         #region Locks
         
-        private ILock<CarLockTags> _gameLock;
-        private ILock<CarLockTags> _menuLock;
+        private LockHandle<CarLockTags> _gameLock;
+        private LockHandle<CarLockTags> _menuLock;
 
         #endregion
 
@@ -167,8 +167,7 @@ namespace Migs.MLock.Examples.Car_UiElements.Code
             _menuPopup.style.display = DisplayStyle.None;
             _languageTooltip.style.display = DisplayStyle.None;
             
-            _gameLock?.Dispose();
-            _gameLock = null;
+            _gameLock.Dispose();
         }
         
         private void OnSelectLanguageButtonClicked()
@@ -186,8 +185,7 @@ namespace Migs.MLock.Examples.Car_UiElements.Code
             // Close language tooltip
             _languageTooltip.style.display = DisplayStyle.None;
             
-            _menuLock?.Dispose();
-            _menuLock = null;
+            _menuLock.Dispose();
         }
 
         #endregion
